@@ -182,7 +182,6 @@ void InitGPIO(void)
 }
 
 //-----------------------------------------------------------------------------
-
 void InitPIO(void)
 {
   g_pio    = pio0;
@@ -193,16 +192,6 @@ void InitPIO(void)
 
   // Start running the PIO program in the state machine
   pio_sm_set_enabled(g_pio, g_sm, true);
-}
-
-void __not_in_flash_func(fast_gpio_set_mask)(uint32_t mask)
-{
-    sio_hw->gpio_set = mask;
-}
-
-void __not_in_flash_func(fast_gpio_clr_mask)(uint32_t mask)
-{
-    sio_hw->gpio_clr = mask;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
