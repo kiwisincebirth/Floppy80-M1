@@ -14,7 +14,7 @@
 #include "sd_core.h"
 
 //#define ENABLE_LOGGING 1
-byte g_bLogOpen = 0;
+byte g_bLogOpen = 1;
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -165,7 +165,7 @@ char     g_szBootConfig[80];
 BYTE     g_byBootConfigModified;
 
 //-----------------------------------------------------------------------------
-int FdcGetDriveIndex(int nDriveSel)
+int __not_in_flash_func(FdcGetDriveIndex)(int nDriveSel)
 {
 	if (nDriveSel & 0x01)
 	{
@@ -201,7 +201,7 @@ int FdcGetSide(byte byDriveSel)
 }
 
 //----------------------------------------------------------------------------
-BYTE FdcGetCommandType(BYTE byCommand)
+BYTE __not_in_flash_func(FdcGetCommandType)(BYTE byCommand)
 {
 	BYTE byType = 0;
 	
@@ -422,7 +422,7 @@ void FdcUpdateStatus(void)
 	g_FDC.byStatus = byStatus;
 }
 
-void FdcSetFlag(byte flag)
+void __not_in_flash_func(FdcSetFlag)(byte flag)
 {
 	switch (flag)
 	{
@@ -477,7 +477,7 @@ void FdcSetFlag(byte flag)
 	FdcUpdateStatus();
 }
 
-void FdcClrFlag(byte flag)
+void __not_in_flash_func(FdcClrFlag)(byte flag)
 {
 	switch (flag)
 	{
@@ -1173,7 +1173,7 @@ void FdcInit(void)
 }
 
 //-----------------------------------------------------------------------------
-void FdcGenerateIntr(void)
+void __not_in_flash_func(FdcGenerateIntr)(void)
 {
 	BYTE byNmiMaskReg = g_FDC.byNmiMaskReg;
 
@@ -1183,7 +1183,7 @@ void FdcGenerateIntr(void)
 }
 
 //-----------------------------------------------------------------------------
-void FdcGenerateDRQ(void)
+void __not_in_flash_func(FdcGenerateDRQ)(void)
 {
 	FdcSetFlag(eDataRequest);
 }	
@@ -1492,9 +1492,9 @@ void FdcProcessReadSectorCommand(void)
 	g_tdTrack.nReadSize     = g_stSector.nSectorSize;
 	g_tdTrack.pbyReadPtr    = g_tdTrack.byTrackData + g_stSector.nSectorDataOffset;
 	g_tdTrack.nReadCount    = g_tdTrack.nReadSize;
-	g_FDC.nProcessFunction  = psReadSector;
 	g_FDC.nServiceState     = 0;
 	g_FDC.nDataRegReadCount = 0;
+	g_FDC.nProcessFunction  = psReadSector;
 
 	// Note: computer now reads the data register for each of the sector data bytes
 	//       once the last data byte is transfered status bit-5 is set if the
@@ -1532,7 +1532,6 @@ void FdcProcessWriteSectorCommand(void)
 	g_tdTrack.nWriteCount        = g_stSector.nSectorSize;
 	g_tdTrack.nWriteSize         = g_stSector.nSectorSize;	// number of byte to be transfered to the computer before
 															// setting the Data Address Mark status bit (1 if Deleted Data)
-	g_FDC.nProcessFunction       = psWriteSector;
 	g_FDC.nServiceState          = 0;
 
 	if ((g_FDC.byCurCommand & 0x01) == 0)
@@ -1543,6 +1542,8 @@ void FdcProcessWriteSectorCommand(void)
 	{
 		g_stSector.bySectorDataAddressMark = 0xF8;
 	}
+
+	g_FDC.nProcessFunction = psWriteSector;
 
 	// Note: computer now writes the data register for each of the sector data bytes.
 	//
@@ -1577,9 +1578,9 @@ void FdcProcessReadAddressCommand(void)
 
 	// number of byte to be transfered to the computer before
 	// setting the Data Address Mark status bit (1 if Deleted Data)
-	g_FDC.nProcessFunction  = psReadSector;
 	g_FDC.nServiceState     = 0;
 	g_FDC.nDataRegReadCount = 0;
+	g_FDC.nProcessFunction  = psReadSector;
 
 	// Note: CRC should be checked during transfer to the computer
 
@@ -1635,8 +1636,8 @@ void FdcProcessWriteTrackCommand(void)
 	g_tdTrack.pbyWritePtr  = g_tdTrack.byTrackData + 0x80;
 	g_tdTrack.nWriteSize   = g_dtDives[g_tdTrack.nDrive].dmk.wTrackLength;
 	g_tdTrack.nWriteCount  = g_tdTrack.nWriteSize;
-	g_FDC.nProcessFunction = psWriteTrack;
 	g_FDC.nServiceState    = 0;
+	g_FDC.nProcessFunction = psWriteTrack;
 }
 
 //-----------------------------------------------------------------------------
@@ -1645,8 +1646,8 @@ void FdcProcessMount(void)
 	g_FDC.byCommandType          = 2;
 	g_FDC.nReadStatusCount       = 0;
 	FdcClrFlag(eDataRequest);
-	g_FDC.nProcessFunction       = psMountImage;
 	g_FDC.nServiceState          = 0;
+	g_FDC.nProcessFunction       = psMountImage;
 
 	// Note: computer now writes the data register for each of the command data bytes.
 	//
@@ -1660,8 +1661,8 @@ void FdcProcessOpenFile(void)
 	g_FDC.byCommandType          = 2;
 	g_FDC.nReadStatusCount       = 0;
 	FdcClrFlag(eDataRequest);
-	g_FDC.nProcessFunction       = psOpenFile;
 	g_FDC.nServiceState          = 0;
+	g_FDC.nProcessFunction       = psOpenFile;
 
 	// Note: computer now writes the data register for each of the command data bytes.
 	//
@@ -1679,52 +1680,52 @@ void FdcProcessCommand(void)
 
 	switch (g_FDC.byCurCommand >> 4)
 	{
-		case 0: // Restore																(Type 1 Command)
+		case 0: // Restore									(Type 1 Command)
 			FdcProcessRestoreCommand();
 			break;
 
-		case 1: // Seek																		(Type 1 Command)
+		case 1: // Seek										(Type 1 Command)
 			FdcProcessSeekCommand();
 			break;
 
-		case 2: // Step (don't update track register)			(Type 1 Command)
-		case 3: // Step (update track register)						(Type 1 Command)
+		case 2: // Step (don't update track register)		(Type 1 Command)
+		case 3: // Step (update track register)				(Type 1 Command)
 			FdcProcessStepCommand();
 			break;
 
 		case 4: // Step In (don't update track register)	(Type 1 Command)
-		case 5: // Step In (update track register)				(Type 1 Command)
+		case 5: // Step In (update track register)			(Type 1 Command)
 			FdcProcessStepInCommand();
 			break;
 
 		case 6: // Step Out (don't update track register)	(Type 1 Command)
-		case 7: // Step Out (update track register)				(Type 1 Command)
+		case 7: // Step Out (update track register)			(Type 1 Command)
 			FdcProcessStepOutCommand();
 			break;
 
-		case 8: // Read Sector (single record)						(Type 2 Command)
-		case 9: // Read Sector (multiple record)					(Type 2 Command)
+		case 8: // Read Sector (single record)				(Type 2 Command)
+		case 9: // Read Sector (multiple record)			(Type 2 Command)
 			FdcProcessReadSectorCommand();
 			break;
 
-		case 10: // Write Sector (single record)					(Type 2 Command)
-		case 11: // Write Sector (multiple record)				(Type 2 Command)
+		case 10: // Write Sector (single record)			(Type 2 Command)
+		case 11: // Write Sector (multiple record)			(Type 2 Command)
 			FdcProcessWriteSectorCommand();
 			break;
 
-		case 12: // Read Address													(Type 3 Command)
+		case 12: // Read Address							(Type 3 Command)
 			FdcProcessReadAddressCommand();
 			break;
 
-		case 13: // Force Interrupt												(Type 4 Command)
+		case 13: // Force Interrupt							(Type 4 Command)
 			FdcProcessForceInterruptCommand();
 			break;
 
-		case 14: // Read Track														(Type 3 Command)
+		case 14: // Read Track								(Type 3 Command)
 			FdcProcessReadTrackCommand();
 			break;
 
-		case 15: // Write Track														(Type 3 Command)
+		case 15: // Write Track								(Type 3 Command)
 			FdcProcessWriteTrackCommand();
 			break;
 
@@ -1766,9 +1767,9 @@ void FdcServiceReadSector(void)
 			}
 
 			g_FDC.nReadStatusCount  = 0;
+			++g_FDC.nServiceState;
 			FdcClrFlag(eBusy);
 			g_FDC.nProcessFunction  = psIdle;
-			++g_FDC.nServiceState;
 			break;
 	}
 }
@@ -1908,50 +1909,13 @@ void FdcServiceWriteSector(void)
 			FdcGenerateDRQ();
 			++g_FDC.nServiceState;
 			break;
-		
+
 		case 1:
-			if (g_FDC.status.byDataRequest != 0) // wait for byte to be placed in the data register by the Z80
-			{
-				break;
-			}
-
-			g_FDC.dwStateCounter = 10;
-			++g_FDC.nServiceState;
-			break;
-
-		case 2:
-			if ((g_FDC.byWaitOutput == 0) && (g_FDC.dwStateCounter > 0)) // don't wait forever
-			{
-				--g_FDC.dwStateCounter;
-				break;
-			}
-
-			*g_tdTrack.pbyWritePtr = g_FDC.byData;
-
 			if (g_tdTrack.nWriteCount > 0)
 			{
-				++g_tdTrack.pbyWritePtr;
-				--g_tdTrack.nWriteCount;
-
-				if (g_tdTrack.nWriteCount == 0)
-				{
-					++g_FDC.nServiceState;
-					break;
-				}
-				else if (g_tdTrack.nWriteCount == 1)
-				{
-					g_FDC.byHoldWaitOnDataWrite = 1; // request that wait be held after last data write in the write sequnce
-				}
-
-				--g_FDC.nServiceState;
-				FdcGenerateDRQ();
 				break;
 			}
 
-			++g_FDC.nServiceState;
-			break;
-
-		case 3:
 			FdcUpdateDataAddressMark(g_stSector.nSector, g_stSector.nSectorSize);
 			
 			// perform a CRC on the sector data (including preceeding 4 bytes) and update sector CRC value
@@ -1964,10 +1928,10 @@ void FdcServiceWriteSector(void)
 			g_FDC.dwStateCounter = 5;
 			break;
 		
-		case 4:
+		case 2:
 			if (g_FDC.dwStateCounter > 0)
 			{
-			--g_FDC.dwStateCounter;
+    			--g_FDC.dwStateCounter;
 				break;
 			}
 
@@ -2236,8 +2200,8 @@ void FdcServiceSendData(void)
 	}
 
 	FdcClrFlag(eDataRequest);
-	g_FDC.nProcessFunction = psIdle;
 	FdcClrFlag(eBusy);
+	g_FDC.nProcessFunction = psIdle;
 }
 
 //-----------------------------------------------------------------------------
@@ -2373,7 +2337,7 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd)
 #endif
 
 //-----------------------------------------------------------------------------
-void fdc_write(word addr, byte byData)
+void __not_in_flash_func(fdc_write)(word addr, byte byData)
 {
 	WORD wReg, wCom;
 #ifdef ENABLE_LOGGING
@@ -2406,9 +2370,9 @@ void fdc_write(word addr, byte byData)
 				g_tdTrack.nWriteSize    = 0;
 				g_FDC.byCurCommand      = g_FDC.byCommandReg;
 				g_FDC.byIntrEnable      = g_FDC.byCurCommand & 0x0F;
-				g_FDC.nProcessFunction  = psIdle;
 				g_FDC.byCommandReceived = 0;
 				memset(&g_FDC.status, 0, sizeof(g_FDC.status));
+				g_FDC.nProcessFunction  = psIdle;
 			}
 			else
 			{
@@ -2484,7 +2448,7 @@ void fdc_write(word addr, byte byData)
 }
 
 //-----------------------------------------------------------------------------
-byte fdc_read(word wAddr)
+byte __not_in_flash_func(fdc_read)(word wAddr)
 {
 	WORD wReg;
 	BYTE byData = 0;
@@ -2589,7 +2553,7 @@ byte fdc_read(word wAddr)
 // B5 - PRECOMP (0-no write precompensation; 1-write precompensation enabled)
 // B6 - WSGEN   (0-disable wait state generation; 1-enable wait state generation)
 // B7 - FM/MFM  (0-select single density; 1-select double denisty)
-void fdc_write_drive_select(byte byData)
+void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 {
 #ifdef ENABLE_LOGGING
 	if (g_bLogOpen)
@@ -2612,43 +2576,6 @@ void fdc_write_drive_select(byte byData)
 		}
 	}
 
-	int nDrive = FdcGetDriveIndex(byData);
+	FdcGetDriveIndex(byData);
 	g_FDC.dwMotorOnTimer = 2000000;
-}
-
-//-----------------------------------------------------------------------------
-byte fdc_read_nmi(void)
-{
-#ifdef ENABLE_LOGGING
-	if (g_bLogOpen)
-	{
-	  printf("    FDC  RD NMI %02X\r\n", g_FDC.byNmiStatusReg);
-	}
-#endif
-
-	return g_FDC.byNmiStatusReg;
-}
-
-//-----------------------------------------------------------------------------
-// B7 - ENINTRQ (0-disabled disk INTRQ from generating an NMI)
-// B6 - ENDRQ   (0-disables disk DRQ form generating an NMIM)
-void fdc_write_nmi(byte byData)
-{
-#ifdef ENABLE_LOGGING
-	if (g_bLogOpen)
-	{
-	  printf("    FDC  WR NMI %02X\r\n", byData);
-	}
-#endif
-
-	g_FDC.byNmiMaskReg = byData;
-
-	if (byData & 0x80)
-	{
-		g_FDC.byNmiMaskReg = byData;
-	}
-	else
-	{
-		FdcClrFlag(eIntrRequest);
-	}
 }

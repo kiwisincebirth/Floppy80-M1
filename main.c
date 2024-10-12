@@ -488,6 +488,6 @@ int main()
     {
         UpdateCounters();
         FdcServiceStateMachine();
-        ServiceVideo();
+//        ServiceVideo();
     }   
 }
