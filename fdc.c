@@ -187,7 +187,7 @@ int __not_in_flash_func(FdcGetDriveIndex)(int nDriveSel)
 }
 
 //-----------------------------------------------------------------------------
-int FdcGetSide(byte byDriveSel)
+int __not_in_flash_func(FdcGetSide)(byte byDriveSel)
 {
 	if (byDriveSel & 0x08) // Model I side select
 	{
@@ -287,7 +287,7 @@ BYTE __not_in_flash_func(FdcGetCommandType)(BYTE byCommand)
 //       1 = DR is full on read operation or empty on write operation
 //  S0 - 1 = busy, command in progress
 //
-void FdcUpdateStatus(void)
+void __not_in_flash_func(FdcUpdateStatus)(void)
 {
 	BYTE byStatus = 0;
 	int  nDrive;
@@ -529,6 +529,7 @@ void __not_in_flash_func(FdcClrFlag)(byte flag)
 	FdcUpdateStatus();
 }
 
+//-----------------------------------------------------------------------------
 void FdcSetRecordType(byte byType)
 {
 	g_FDC.status.byRecordType = byType;
@@ -941,22 +942,6 @@ void FdcReadSector(int nDriveSel, int nSide, int nTrack, int nSector)
 }
 
 //-----------------------------------------------------------------------------
-void FdcMountCpmDrive(int nDrive)
-{
-	if (nDrive >= MAX_DRIVES)
-	{
-		return;
-	}
-
-	g_dtDives[nDrive].f = FileOpen(g_dtDives[nDrive].szFileName, FA_READ | FA_WRITE);
-
-	if (g_dtDives[nDrive].f == NULL)
-	{
-		return;
-	}
-}
-
-//-----------------------------------------------------------------------------
 void FdcMountDmkDrive(int nDrive)
 {
 	if (nDrive >= MAX_DRIVES)
@@ -1045,11 +1030,7 @@ void FdcMountDrive(int nDrive)
 {
 	g_dtDives[nDrive].nDriveFormat = eUnknown;
 
-	if (stristr(g_dtDives[nDrive].szFileName, (char*)".img") != NULL)
-	{
-		FdcMountCpmDrive(nDrive);
-	}
-	else if (stristr(g_dtDives[nDrive].szFileName, (char*)".dmk") != NULL)
+	if (stristr(g_dtDives[nDrive].szFileName, (char*)".dmk") != NULL)
 	{
 		FdcMountDmkDrive(nDrive);
 	}

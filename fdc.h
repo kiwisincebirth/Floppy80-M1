@@ -113,7 +113,6 @@ enum {
 	eUnknown = 0,
 	eDMK,
 	eHFE,
-	eIMG
 };
 
 typedef struct pictrack_
