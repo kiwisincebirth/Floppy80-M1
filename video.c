@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <string.h>
+#include "tusb.h"
 
 #include "defines.h"
 #include "video.h"
@@ -9,14 +10,16 @@
 #define VIDEO_NUM_ROWS 16
 
 byte g_byVideoMemory[VIDEO_BUFFER_SIZE];
-int  g_nVideoModified;
+word g_wVideoLinesModified[VIDEO_NUM_ROWS];
+word g_wPrevVideoLinesModified[VIDEO_NUM_ROWS];
 
 byte g_byLineBuffer[128];
 
 void InitVideo(void)
 {
 	memset(g_byVideoMemory, 0x20, sizeof(g_byVideoMemory));
-    g_nVideoModified = 0;
+    memset(g_wVideoLinesModified, 0, sizeof(g_wVideoLinesModified));
+    memset(g_wPrevVideoLinesModified, 0, sizeof(g_wPrevVideoLinesModified));
 }
 
 void VideoWrite(word addr, byte ch)
@@ -26,8 +29,9 @@ void VideoWrite(word addr, byte ch)
         return;
     }
 
-    g_byVideoMemory[addr-0x3C00] = ch;
-    ++g_nVideoModified;
+    addr -= 0x3C00;
+    g_byVideoMemory[addr] = ch;
+    ++g_wVideoLinesModified[addr/VIDEO_NUM_COLS];
 }
 
 byte TranslateVideoChar(byte by)
@@ -107,22 +111,55 @@ void GetVideoLine(int nLine, byte* pby, int nMaxLen)
 
 void ServiceVideo(void)
 {
-    static int nPreviousVideoModified;
-    int i;
+    static byte buf[VIDEO_NUM_COLS+1];
+    static int  nPreviousVideoModified = 0;
+    static int  nStartLine = 0;
+    static int  nCurrentLine = 0;
+    static int  state = 0;
 
-    if (nPreviousVideoModified == g_nVideoModified)
+    if (tud_cdc_n_write_available(CDC_ITF) < 80)
     {
         return;
     }
 
-    nPreviousVideoModified = g_nVideoModified;
-
-    puts("\033[?25l\033[2J\033[H");
-
-    for (i = 0; i < 16; ++i)
+    switch (state)
     {
-        printf("\033[%dH", i+1);
-        GetVideoLine(i, g_byLineBuffer, sizeof(g_byLineBuffer));
-        printf(g_byLineBuffer);
+        case 0:
+            ++nCurrentLine;
+
+            if (nCurrentLine >= VIDEO_NUM_ROWS)
+            {
+                nCurrentLine = 0;
+            }
+
+            ++state;
+            break;
+
+        case 1:
+            if (g_wVideoLinesModified[nCurrentLine] == g_wPrevVideoLinesModified[nCurrentLine])
+            {
+                state = 0;
+                break;
+            }
+
+            g_wPrevVideoLinesModified[nCurrentLine] = g_wVideoLinesModified[nCurrentLine];
+            sprintf(buf, "\033[%dH", nCurrentLine+1);
+            tud_cdc_n_write(CDC_ITF, buf, strlen(buf));
+            ++state;
+            break;
+
+        case 2:
+            GetVideoLine(nCurrentLine, g_byLineBuffer, sizeof(g_byLineBuffer));
+            ++state;
+            break;
+
+        case 3:
+            tud_cdc_n_write(CDC_ITF, g_byLineBuffer, VIDEO_NUM_COLS);
+            ++state;
+            break;
+
+        default:
+            state = 0;
+            break;
     }
 }

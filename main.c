@@ -9,6 +9,7 @@
 #include "hardware/regs/intctrl.h"
 #include "hardware/clocks.h"
 #include "hardware/structs/systick.h"
+#include "tusb.h"
 
 #include "fdc.pio.h"
 #include "defines.h"
@@ -25,6 +26,7 @@ byte by_memory[0x8000];
 
 byte g_byRtcIntrActive;
 byte g_byFdcIntrActive;
+bool g_bCdcConnected;
 
 ///////////////////////////////////////////////////////////////////////////////
 // API documentions is located at
@@ -466,6 +468,8 @@ void __not_in_flash_func(service_memory)(void)
 ///////////////////////////////////////////////////////////////////////////////
 int main()
 {
+    g_bCdcConnected = false;
+
     stdio_init_all();
 
     systick_hw->csr = 0x5;
@@ -488,6 +492,22 @@ int main()
     {
         UpdateCounters();
         FdcServiceStateMachine();
-//        ServiceVideo();
-    }   
+
+        if (g_bCdcConnected)
+        {
+            ServiceVideo();
+        }
+
+        if (tud_cdc_connected())
+        {
+            if (g_bCdcConnected == false)
+            {
+                g_bCdcConnected = true;
+            }
+        }
+        else
+        {
+            g_bCdcConnected = false;
+        }
+    }
 }

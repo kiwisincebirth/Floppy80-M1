@@ -75,6 +75,10 @@
         "typeinfo": "c",
         "utility": "c",
         "fdc.h": "c",
-        "string.h": "c"
+        "string.h": "c",
+        "tusb.h": "c",
+        "tusb_common.h": "c",
+        "osal.h": "c",
+        "tusb_fifo.h": "c"
     }
 }

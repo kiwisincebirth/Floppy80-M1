@@ -6,6 +6,8 @@
 
 #include <stdio.h>
 
+#define CDC_ITF     0           /* USB CDC interface no */
+
 typedef signed char        	int8_t;
 typedef unsigned char		uint8_t;
 typedef short              	int16_t;
