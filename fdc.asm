@@ -589,6 +589,10 @@ getlist40:
 ; (drive)  - memory location contains the index of the drive selection ('0'-'3')
 ;
 setparms:
+	push	a
+	push	hl
+	push	de
+
 	; parm3[0] = (drive);
 	; parm3[1] = 0;
 	ld	a,(drive)
@@ -609,6 +613,9 @@ setparms:
 	ld	de,parm2
 	call	strcpy
 
+	pop	de
+	pop	hl
+	pop	a
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -622,6 +629,10 @@ setparms:
 ; parm2 - contains the filename.ext
 ;
 mountfile:
+	push	a
+	push	hl
+	push	de
+
 	; build command string in xferbuf
 	; '0 filename.ext' (replace 0 with desired drive number)
 	ld	hl,parm3
@@ -648,6 +659,10 @@ mountfile:
 	ld	(hl),a
 
 	call	wait_for_ready
+
+	pop	de
+	pop	hl
+	pop	a
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -673,13 +688,16 @@ Mul8Skip:
 ; HL - points to the string
 ;
 skipblanks:
+	push	a
+skipblanks1:
 	ld	a,(hl)
 	cp	32		; space
-	jr	nz,skipblanks1
+	jr	nz,skipblanks2
 	inc	hl
-	jr	skipblanks
+	jr	skipblanks1
 
-skipblanks1:
+skipblanks2:
+	pop	a
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -689,18 +707,21 @@ skipblanks1:
 ; HL - points to the string
 ;
 skiptoblank:
+	push	a
+skiptoblank1:
 	ld	a,(hl)
 
 	cp	32		; space
-	jr	z,skiptoblank1
+	jr	z,skiptoblank2
 	
 	cp	0
-	jr	z,skiptoblank1
+	jr	z,skiptoblank2
 
 	inc	hl
-	jr	skiptoblank
+	jr	skiptoblank1
 
-skiptoblank1:
+skiptoblank2:
+	pop	a
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -716,7 +737,8 @@ skiptoblank1:
 ;	HL - last location of source accessed (points to the null)
 ;	DE - last location of destingation accessed (points to the null)
 ;
-strcpy:	push	hl
+strcpy:	push	a
+	push	hl
 	push	de
 
 	; copy string until null is detected
@@ -730,6 +752,7 @@ strcpy1:
 
 	pop	de
 	pop	hl
+	pop	a
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -737,7 +760,8 @@ strcpy1:
 ;	HL - source
 ;	DE - destination
 ;
-strcat:	push	hl
+strcat:	push	a
+	push	hl
 	push	de
 
 	; locate null byte of destination string
@@ -759,6 +783,7 @@ strcat2:
 
 	pop	de
 	pop	hl
+	pop	a
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -769,7 +794,8 @@ strcat2:
 ;
 ; return: b - contains the length of the string
 ;
-strlen:	push	hl
+strlen:	push	a
+	push	hl
 	ld	b,255
 
 	; locate null terminator
@@ -781,6 +807,7 @@ strlen1:
 	jr	nz,strlen1
 
 	pop	hl
+	pop	a
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -814,7 +841,7 @@ striequ:
 	jr	striequ
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; hl - points to the string to scan
+; hl - points to the string to scan for
 ; b  - contains the character to be replaced
 ; c  - contains the character to replace with
 strchr_replace:
@@ -893,9 +920,14 @@ getparms1:
 ; a  - value to fill memory with
 ; b  - the number of bytes in memory to set
 ;
-memset:	ld	(hl),a
+memset:
+	push	hl
+memset1:
+	ld	(hl),a
 	inc	hl
-	djnz	memset
+	djnz	memset1
+
+	pop	hl
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -909,19 +941,22 @@ memset:	ld	(hl),a
 ;	a - contains the parameter termination charcter
 ;
 copyparm:
+	push	hl
+	push	de
+copyparm1:
 	ld	a,(hl)
 	inc	hl
 	ld	(de),a
 	inc	de
 	cp	0
-	jr	z,copyparm1
+	jr	z,copyparm2
 	cp	13
-	jr	z,copyparm1
+	jr	z,copyparm2
 	cp	' '
-	jr	z,copyparm1
-	jr	copyparm
+	jr	z,copyparm2
+	jr	copyparm1
 
-copyparm1:
+copyparm2:
 	push	a
 
 	; null terminate (space to null or CR to null)
@@ -930,6 +965,8 @@ copyparm1:
 	ld	(de),a
 
 	pop	a
+	pop	de
+	pop	hl
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -965,6 +1002,8 @@ toupper2:
 ;   a != 0 indicates the file information in xferbuf
 ;
 findfirst:
+	push	hl
+
 	; set response length to 0
 	ld	a,0
 	ld	hl,RESPONSE_ADDR
@@ -981,6 +1020,7 @@ findfirst:
 	ld	hl,xferbuf
 	call	readdata
 
+	pop	hl
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -990,6 +1030,8 @@ findfirst:
 ;   a != 0 indicates the file information in xferbuf
 ;
 findnext:
+	push	hl
+
 	; set response length to 0
 	ld	a,0
 	ld	hl,RESPONSE_ADDR
@@ -1006,6 +1048,7 @@ findnext:
 	ld	hl,xferbuf
 	call	readdata
 
+	pop	hl
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1067,6 +1110,7 @@ readdata2:
 ;	b  - contains the number of bytes to be written
 ;
 writedata:
+	push	a
 	push	hl
 	push	de
 
@@ -1081,6 +1125,7 @@ writedata1:
 
 	pop	de
 	pop	hl
+	pop	a
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1092,8 +1137,8 @@ dly:	djnz	dly
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; wait for the Floppy80-M1 request to complete
-; times out if the bust flag remains set.
+; wait for the Floppy80-M1 request to complete (mem(REQUEST_ADDR) == 0)
+; times out if mem(REQUEST_ADDR) != 0 after 256 times through loop
 wait_for_ready:
 	push	a
 	push	b
