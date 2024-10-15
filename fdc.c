@@ -2418,7 +2418,7 @@ void FdcServiceMountImage(void)
 	int   nDrive;
 
 	// locate the drive number
-	psz = SkipBlanks((char*)g_bFdcResponse.buf);
+	psz = SkipBlanks((char*)g_bFdcRequest.buf);
 	nDrive = atoi(psz);
 
 	psz = SkipToBlank((char*)psz);
@@ -2434,9 +2434,9 @@ void FdcServiceMountImage(void)
 	{
 		return;
 	}
-	
+
 	// if test if it is an ini file
-	if (stristr(g_bFdcResponse.buf, ".ini"))
+	if (stristr(g_bFdcRequest.buf, ".ini"))
 	{
 		FdcSaveBootCfg((char*)psz);
 	}

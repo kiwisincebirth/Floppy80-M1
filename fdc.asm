@@ -15,28 +15,28 @@
 @exit	equ 22
 @put	equ 4
 
-LLEN	 equ	80		; file buffer line length
-NLINES	 equ	10		; number of lines in file/text buffer
-PARMSIZE equ	64
+LLEN	 equ 80		; file buffer line length
+NLINES	 equ 10		; number of lines in file/text buffer
+PARMSIZE equ 64
 
 ; Floppy-80 command codes
-GETSTAUS_CMD  equ	1
-FINDALL_CMD   equ	2
-FINDNEXT_CMD  equ	3
-MOUNT_CMD     equ	4
-OPENFILE_CMD  equ	5
-READFILE_CMD  equ	6
-WRITEFILE_CMD equ	7
-CLOSEFILE_CMD equ	8
-SETTIME_CMD   equ	9
-GETTIME_CMD   equ	10
+GETSTAUS_CMD  equ 1
+FINDALL_CMD   equ 2
+FINDNEXT_CMD  equ 3
+MOUNT_CMD     equ 4
+OPENFILE_CMD  equ 5
+READFILE_CMD  equ 6
+WRITEFILE_CMD equ 7
+CLOSEFILE_CMD equ 8
+SETTIME_CMD   equ 9
+GETTIME_CMD   equ 10
 
-FINDINI_CMD   equ	80h
-FINDDMK_CMD   equ	81h
-FINDHFE_CMD   equ	82h
+FINDINI_CMD   equ 80h
+FINDDMK_CMD   equ 81h
+FINDHFE_CMD   equ 82h
 
-REQUEST_ADDR  equ   3000h
-RESPONSE_ADDR equ   3200h
+REQUEST_ADDR  equ 3000h
+RESPONSE_ADDR equ 3200h
 
 ; to detect equality of a value in A
 ;	cp	<whatever>
@@ -60,7 +60,7 @@ not4:
 	ld	(model),a
 
 gotid:
-	call getparms
+	call	getparms
 
 	ld	a,0		; set opcode = 0 just in case
 	ld	(opcode),a
@@ -142,7 +142,7 @@ getsta:
 	ld	hl,REQUEST_ADDR
 	ld	(hl),a
 
-	call	wait_for_response
+	call	wait_for_ready
 
 	; display status response
 	ld	hl,RESPONSE_ADDR+2
@@ -225,7 +225,7 @@ import2:
 	ld	a,OPENFILE_CMD
 	out	(0F0H),a
 
-	call	wait_for_response	; wait until Floppy-80 has completed the request
+	call	wait_for_ready	; wait until Floppy-80 has completed the request
 
 imploop:
 	; read data from Floppy-80
@@ -408,7 +408,7 @@ oktomount:
 
 getlist10:
 	ld	de,lnbuf
-	ld	a,0		; ini file counter (found = 0)
+	ld	a,0		; init file counter (found = 0)
 	ld	(found),a
 	ld	a,(opcode)
 	ld	b,a
@@ -497,7 +497,7 @@ getnext:
 getnextset:
 	call	clrscr
 	ld	de,lnbuf
-	ld	a,0		; ini file counter (found = 0)
+	ld	a,0		; init file counter (found = 0)
 	ld	(found),a
 	jp	getnext
 
@@ -563,10 +563,10 @@ mount1:	call	getchar
 	cp	a,'0'
 	jr	c,mount1
 
-	; if (a > '3') then try again
-	cp	'3'
-	jr	c,mount2	; A was less than '3'
-	jr	z,mount2	; A was exactly equal to '3'
+	; if (a > '2') then try again
+	cp	'2'
+	jr	c,mount2	; A was less than '2'
+	jr	z,mount2	; A was exactly equal to '2'
 	jp	mount1
 
 mount2:	ld	(parm3),a
@@ -617,17 +617,15 @@ setparms:
 ; then sends the mount command code and command text to the
 ; Floppy-80 controller.
 ;
-; parm3 - ASCII character indicating the desired drive ('0'-'3')
+; parm3 - ASCII character indicating the desired drive ('0'-'2')
 ;
 ; parm2 - contains the filename.ext
 ;
 mountfile:
-	call	wait_for_response
-
 	; build command string in xferbuf
 	; '0 filename.ext' (replace 0 with desired drive number)
-	ld	de,xferbuf
 	ld	hl,parm3
+	ld	de,xferbuf
 	call	strcpy
 
 	; add space
@@ -640,17 +638,16 @@ mountfile:
 	ld	de,xferbuf
 	call	strcat
 
-	ld	a,0FH		; drive select for host
-	out	(0F4H),a
-
 	ld	hl,xferbuf
 	call	strlen
-	inc	b
 	call	writedata	; hl - points to the data to be written
 				; b  - contains the number of bytes to be written
-	ld	a,MOUNT_CMD	; mount command
-	out	(0F0H),a
 
+	ld	a,MOUNT_CMD	; mount command
+	ld	hl,REQUEST_ADDR
+	ld	(hl),a
+
+	call	wait_for_ready
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -970,14 +967,14 @@ toupper2:
 findfirst:
 	; set response length to 0
 	ld	a,0
-	ld  hl,RESPONSE_ADDR
+	ld	hl,RESPONSE_ADDR
 	ld	(hl),a
-	ld  hl,RESPONSE_ADDR+1
+	ld	hl,RESPONSE_ADDR+1
 	ld	(hl),a
 
 	; find first command
 	ld	a,b
-	ld  hl,REQUEST_ADDR
+	ld	hl,REQUEST_ADDR
 	ld	(hl),a
 
 	; ReadData(psz, nMaxLen);
@@ -995,14 +992,14 @@ findfirst:
 findnext:
 	; set response length to 0
 	ld	a,0
-	ld  hl,RESPONSE_ADDR
+	ld	hl,RESPONSE_ADDR
 	ld	(hl),a
-	ld  hl,RESPONSE_ADDR+1
+	ld	hl,RESPONSE_ADDR+1
 	ld	(hl),a
 
 	; find next command
 	ld	a,FINDNEXT_CMD
-	ld  hl,REQUEST_ADDR
+	ld	hl,REQUEST_ADDR
 	ld	(hl),a
 
 	; ReadData(psz, nMaxLen);
@@ -1023,16 +1020,19 @@ findnext:
 ;	a - contains the number of bytes read
 ;
 readdata:
-	ld  a,0
-	ld  (hl),a
+	push	hl
+	push	de
 
-	call	wait_for_response
+	ld	a,0
+	ld	(hl),a
 
-	ld  de,RESPONSE_ADDR
-	ld  a,(de)
+	call	wait_for_ready
+
+	ld	de,RESPONSE_ADDR
+	ld	a,(de)
 
 	push	a
-	ld  b,a
+	ld	b,a
 
 	; test for zero length data/string
 	cp	0
@@ -1040,11 +1040,11 @@ readdata:
 
 	ld	b,a         ; b will hold the loop counter
 
-	ld  de,RESPONSE_ADDR+2
+	ld	de,RESPONSE_ADDR+2
 
 readdata1:
-	ld  a,(de)
-	inc de
+	ld	a,(de)
+	inc	de
 	ld	(hl),a
 	inc	hl
 	djnz	readdata1
@@ -1055,6 +1055,8 @@ readdata1:
 
 readdata2:
 	pop	a
+	pop	de
+	pop	hl
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
@@ -1065,51 +1067,48 @@ readdata2:
 ;	b  - contains the number of bytes to be written
 ;
 writedata:
+	push	hl
+	push	de
+
 	ld  de,REQUEST_ADDR+2
 
 writedata1:
 	ld	a,(hl)
-	ld  (de),A
-	inc de
+	ld	(de),a
+	inc	de
 	inc	hl
 	djnz	writedata1
 
+	pop	de
+	pop	hl
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 ; just waste some time
-delay:
-	push	b
+delay:	push	b
 	ld	b,0
-dly:
-	djnz	dly
+dly:	djnz	dly
 	pop	b
 	ret
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
-; wait for the Floppy-80 status to be not busy
+; wait for the Floppy80-M1 request to complete
 ; times out if the bust flag remains set.
-wait_for_response:
+wait_for_ready:
 	push	a
 	push	b
 	push    hl
 
 	ld	b,0
 
-wnb1:
-	ld  hl,RESPONSE_ADDR
-	ld	a,(hl)
-	jr	nz,wnb3
-	ld  hl,RESPONSE_ADDR+1
+wnb1:	ld	hl,REQUEST_ADDR
 	ld	a,(hl)
 	jr	nz,wnb3
 
-wnb2:
-	call	delay		; give Floppy-80 time to do its thing
+wnb2:	call	delay		; give Floppy-80 time to do its thing
 	djnz	wnb1		; time out after 256 loops
 
-wnb3:
-	pop hl
+wnb3:	pop	hl
 	pop	b
 	pop	a
 	ret
@@ -1181,6 +1180,7 @@ p13:	pop	af
 	jp	$33
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
+; HL - points to the null terminated string to display.
 print:
 	ld	a,(hl)
 	inc	hl
@@ -1223,8 +1223,8 @@ getchar3:			; model 3
 	jp	gexit
 
 getchar4:			; model 4
-	ld     a,@key
-	rst    $28
+	ld	a,@key
+	rst	$28
 
 gexit:
 	pop	de
@@ -1251,7 +1251,7 @@ exit3:	ld	hl,0
 
 ;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;;
 intro:
-		ascii	'FDC utility version 0.0.3',13
+		ascii	'FDC utility version 0.0.5',13
 		ascii	'Command line options:',13
 		ascii	'STA - get status (firmware version, mounted disks, etc.).',13
 ;		ascii	'SET - set FDC date and time to the TRS-80 date and time.',13
@@ -1264,7 +1264,7 @@ intro:
 ;		ascii	'EXP - export a file to the SD-card.   FDC EXP filename/ext:n',13
 		ascii	' ',13
 		ascii	'      filename.ext - is the filename and extension.',13
-		ascii	'      n - is the drive number (0-3).',13,0
+		ascii	'      n - is the drive number (0-2).',13,0
 
 error1:		ascii	'Error: drive index not specified on command line',13,13,0
 imperr1:	ascii	'Error: invalid file specification',13,13,0
@@ -1288,20 +1288,20 @@ EXPstr:		ascii	'EXP',0
 
 prompt_part1:	ascii	'Press 1-',0
 prompt_part2:	ascii	' to select the desired file.',13
-				ascii	'Press any other key for next set of files.',13,0
-prompt_drive:	ascii	'Specify drive to mount to (0-3).',13,0
+		ascii	'Press any other key for next set of files.',13,0
+prompt_drive:	ascii	'Specify drive to mount to (0-2).',13,0
 prompt_reset:	ascii	'Press reset to continue.',13,0
 
-model:		defs	1	; 0=Model 3; 1=Model 4; 2=Model II;
-opcode:		defs	1	; command line operation requested (0=STA; 1=INI; 2=MNT;)
+model:		defs	1		; 0=Model 3; 1=Model 4; 2=Model II;
+opcode:		defs	1		; command line operation requested (0=STA; 1=INI; 2=MNT;)
 found:		defs	1
 select:		defs	1
 drive:		defs	1
 
-fcb:		defs	48	; 48 for Model III TRSDOS 1.3   
+fcb:		defs	48		; 48 for Model III TRSDOS 1.3   
 fcbbuf:		defs	256
 
-xferbuf:	defs	260	; transfer buffer
+xferbuf:	defs	260		; transfer buffer
 lnbuf:		defs	(NLINES*LLEN)	; text buffer of NLINES lines of LLEN characters each
 
 parm1:		defs	PARMSIZE
@@ -1309,3 +1309,4 @@ parm2:		defs	PARMSIZE
 parm3:		defs	PARMSIZE
 
 	end	start
+ 
