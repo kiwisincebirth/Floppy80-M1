@@ -19,10 +19,6 @@
 #include "video.h"
 #include "cli.h"
 
-#if (ENABLE_TRACE_LOG == 1)
-	void RecordBusHistory(DWORD dwBus, BYTE byData);
-#endif
-
 byte by_memory[0x8000];
 
 byte g_byRtcIntrActive;
@@ -54,7 +50,7 @@ uint          g_sm, g_offset;
 ///////////////////////////////////////////////////////////////////////////////
 // GPIO NET        IN   OUT
 //-----------------------------------------------------------------------------
-// 0	  DEBUG_TXT			   * (Serial transmit for debug messages)
+// 0	DEBUG_TXT		 * (Serial transmit for debug messages)
 // 1    WAIT             * (drives a transistor to pull the Z80 Wait line low)
 // 2    CLK_SCLK         * (SD-Card)
 // 3    CMD_MOSI         * (SD-Card)
@@ -195,6 +191,24 @@ void __not_in_flash_func(ReleaseWait)(void)
 }
 
 //-----------------------------------------------------------------------------
+static inline bool get_gpio(uint gpio)
+{
+    return sio_hw->gpio_in & (1u << gpio);
+}
+
+//-----------------------------------------------------------------------------
+static inline void set_gpio(uint gpio)
+{
+    sio_hw->gpio_set = 1u << gpio;
+}
+
+//-----------------------------------------------------------------------------
+static inline void clr_gpio(uint gpio)
+{
+    sio_hw->gpio_clr = 1u << gpio;
+}
+
+//-----------------------------------------------------------------------------
 void __not_in_flash_func(service_memory)(void)
 {
     byte operation;
@@ -204,46 +218,49 @@ void __not_in_flash_func(service_memory)(void)
         word w;
     } addr;
 
-    gpio_put(WAIT_PIN, 0);
+    clr_gpio(WAIT_PIN);
 
     while (1)
     {
         // wait for MREQ to go inactive
-        while (gpio_get(MREQ_PIN) == 0);
+        while (get_gpio(MREQ_PIN) == 0);
 
         // wait for MREQ to go active
-        while (gpio_get(MREQ_PIN) != 0);
+        while (get_gpio(MREQ_PIN) != 0);
 
-        gpio_put(WAIT_PIN, 1);
+        // activate WAIT_PIN
+        set_gpio(WAIT_PIN);
 
         // read low address byte
-        sio_hw->gpio_clr = 1 << ADDRL_OE_PIN;
+        sio_hw->gpio_clr = 1u << ADDRL_OE_PIN;
         asm(
         "nop\n\t"
         "nop\n\t"
         "nop\n\t"
         );
         addr.b[0] = sio_hw->gpio_in >> D0_PIN;
-        sio_hw->gpio_set = 1 << ADDRL_OE_PIN;
+        set_gpio(ADDRL_OE_PIN);
 
         // read high address byte
-        sio_hw->gpio_clr = 1 << ADDRH_OE_PIN;
+        sio_hw->gpio_clr = 1u << ADDRH_OE_PIN;
         asm(
         "nop\n\t"
         "nop\n\t"
         "nop\n\t"
         );
         addr.b[1] = sio_hw->gpio_in >> D0_PIN;
-        sio_hw->gpio_set = 1 << ADDRH_OE_PIN;
+        set_gpio(ADDRH_OE_PIN);
 
         // wait for RD or WR to go active or MREQ to go inactive
-        while ((gpio_get(RD_PIN) != 0) && (gpio_get(WR_PIN) != 0) && (gpio_get(MREQ_PIN) == 0));
+        while ((get_gpio(RD_PIN) != 0) &&
+               (get_gpio(WR_PIN) != 0) &&
+               (get_gpio(MREQ_PIN) == 0));
 
-        if (gpio_get(RD_PIN) == 0)
+        if (get_gpio(RD_PIN) == 0)
         {
             operation = opRead;
         }
-        else if (gpio_get(WR_PIN) == 0)
+        else if (get_gpio(WR_PIN) == 0)
         {
             operation = opWrite;
         }
@@ -276,13 +293,14 @@ void __not_in_flash_func(service_memory)(void)
 
                             if (!g_byFdcIntrActive)
                             {
-                                gpio_put(INT_PIN, 0); // deactivate intr
+                                // deactivate intr
+                                sio_hw->gpio_clr = 1u << INT_PIN;
                             }
                         }
 
-                        sio_hw->gpio_clr = 1 << DIR_PIN;        // B to A direction
+                        clr_gpio(DIR_PIN);                      // B to A direction
                         sio_hw->gpio_oe_set = 0xFF << D0_PIN;   // make data pins (D0-D7) outputs
-                        sio_hw->gpio_clr = 1 << DATAB_OE_PIN;   // enable data bus transciever
+                        clr_gpio(DATAB_OE_PIN);                 // enable data bus transciever
 
                         // put byte on data bus
                         sio_hw->gpio_togl = (sio_hw->gpio_out ^ (data << D0_PIN)) & (0xFF << D0_PIN);
@@ -290,15 +308,16 @@ void __not_in_flash_func(service_memory)(void)
                         ReleaseWait();
 
                         // turn bus around
-                        sio_hw->gpio_set = 1 << DATAB_OE_PIN; // disable data bus transciever
+                        set_gpio(DATAB_OE_PIN); // disable data bus transciever
                         sio_hw->gpio_oe_clr = 0xFF << D0_PIN; // reset data pins (D0-D7) inputs
-                        sio_hw->gpio_set = 1 << DIR_PIN;      // A to B direction
+                        set_gpio(DIR_PIN);      // A to B direction
                         break;
 
                     case 0x37EC: // Cmd/Status register
                         if (!g_byRtcIntrActive)
                         {
-                            gpio_put(INT_PIN, 0); // deactivate intr
+                            // deactivate intr
+                            sio_hw->gpio_clr = 1u << INT_PIN;
                         }
 
                     case 0x37ED: // Track register
@@ -306,9 +325,9 @@ void __not_in_flash_func(service_memory)(void)
                     case 0x37EF: // Data register
                         data = fdc_read(addr.w);
 
-                        sio_hw->gpio_clr = 1 << DIR_PIN;        // B to A direction
+                        clr_gpio(DIR_PIN);                      // B to A direction
                         sio_hw->gpio_oe_set = 0xFF << D0_PIN;   // make data pins (D0-D7) outputs
-                        sio_hw->gpio_clr = 1 << DATAB_OE_PIN;   // enable data bus transciever
+                        clr_gpio(DATAB_OE_PIN);                 // enable data bus transciever
 
                         // put byte on data bus
                         sio_hw->gpio_togl = (sio_hw->gpio_out ^ (data << D0_PIN)) & (0xFF << D0_PIN);
@@ -316,9 +335,9 @@ void __not_in_flash_func(service_memory)(void)
                         ReleaseWait();
 
                         // turn bus around
-                        sio_hw->gpio_set = 1 << DATAB_OE_PIN; // disable data bus transciever
+                        set_gpio(DATAB_OE_PIN); // disable data bus transciever
                         sio_hw->gpio_oe_clr = 0xFF << D0_PIN; // reset data pins (D0-D7) inputs
-                        sio_hw->gpio_set = 1 << DIR_PIN;      // A to B direction
+                        set_gpio(DIR_PIN);      // A to B direction
                         break;
 
                     default:
@@ -326,9 +345,9 @@ void __not_in_flash_func(service_memory)(void)
                         {
 
                             data = fdc_response(addr.w);
-                            sio_hw->gpio_clr = 1 << DIR_PIN;        // B to A direction
+                            clr_gpio(DIR_PIN);                      // B to A direction
                             sio_hw->gpio_oe_set = 0xFF << D0_PIN;   // make data pins (D0-D7) outputs
-                            sio_hw->gpio_clr = 1 << DATAB_OE_PIN;   // enable data bus transciever
+                            clr_gpio(DATAB_OE_PIN);                 // enable data bus transciever
 
                             // put byte on data bus
                             sio_hw->gpio_togl = (sio_hw->gpio_out ^ (data << D0_PIN)) & (0xFF << D0_PIN);
@@ -336,9 +355,9 @@ void __not_in_flash_func(service_memory)(void)
                             ReleaseWait();
 
                             // turn bus around
-                            sio_hw->gpio_set = 1 << DATAB_OE_PIN; // disable data bus transciever
-                            sio_hw->gpio_oe_clr = 0xFF << D0_PIN; // reset data pins (D0-D7) inputs
-                            sio_hw->gpio_set = 1 << DIR_PIN;      // A to B direction
+                            set_gpio(DATAB_OE_PIN);                 // disable data bus transciever
+                            sio_hw->gpio_oe_clr = 0xFF << D0_PIN;   // reset data pins (D0-D7) inputs
+                            set_gpio(DIR_PIN);                      // A to B direction
                             break;
                         }
 
@@ -348,9 +367,9 @@ void __not_in_flash_func(service_memory)(void)
             }
             else // RD from upper 32k memory
             {
-                sio_hw->gpio_clr = 1 << DIR_PIN;        // B to A direction
+                clr_gpio(DIR_PIN);                      // B to A direction
                 sio_hw->gpio_oe_set = 0xFF << D0_PIN;   // make data pins (D0-D7) outputs
-                sio_hw->gpio_clr = 1 << DATAB_OE_PIN;   // enable data bus transciever
+                clr_gpio(DATAB_OE_PIN);                 // enable data bus transciever
 
                 // put byte on data bus
                 sio_hw->gpio_togl = (sio_hw->gpio_out ^ (by_memory[addr.w-0x8000] << D0_PIN)) & (0xFF << D0_PIN);
@@ -358,9 +377,9 @@ void __not_in_flash_func(service_memory)(void)
                 ReleaseWait();
 
                 // turn bus around
-                sio_hw->gpio_set = 1 << DATAB_OE_PIN; // disable data bus transciever
-                sio_hw->gpio_oe_clr = 0xFF << D0_PIN; // reset data pins (D0-D7) inputs
-                sio_hw->gpio_set = 1 << DIR_PIN;      // A to B direction
+                set_gpio(DATAB_OE_PIN);                 // disable data bus transciever
+                sio_hw->gpio_oe_clr = 0xFF << D0_PIN;   // reset data pins (D0-D7) inputs
+                set_gpio(DIR_PIN);                      // A to B direction
             }
         }
         else if (operation == opWrite)
@@ -370,18 +389,19 @@ void __not_in_flash_func(service_memory)(void)
                 byte ch;
 
                 // get data byte
-                sio_hw->gpio_clr = 1 << DATAB_OE_PIN;
+                clr_gpio(DATAB_OE_PIN);
                 asm(
                 "nop\n\t"
                 "nop\n\t"
                 "nop\n\t"
                 );
                 ch = sio_hw->gpio_in >> D0_PIN;
-                sio_hw->gpio_set = 1 << DATAB_OE_PIN;
+                set_gpio(DATAB_OE_PIN);
 
                 VideoWrite(addr.w, ch);
+                ReleaseWait();
             }
-            if (addr.w < 0x8000) // WR to lower 32k memory
+            else if (addr.w < 0x8000) // WR to lower 32k memory
             {
                 switch (addr.w)
                 {
@@ -390,14 +410,14 @@ void __not_in_flash_func(service_memory)(void)
                     case 0x37E2:
                     case 0x37E3: // drive select
                         // get data byte
-                        sio_hw->gpio_clr = 1 << DATAB_OE_PIN;
+                        clr_gpio(DATAB_OE_PIN);
                         asm(
                         "nop\n\t"
                         "nop\n\t"
                         "nop\n\t"
                         );
                         data = sio_hw->gpio_in >> D0_PIN;
-                        sio_hw->gpio_set = 1 << DATAB_OE_PIN;
+                        set_gpio(DATAB_OE_PIN);
 
                         fdc_write_drive_select(data);
 
@@ -409,14 +429,14 @@ void __not_in_flash_func(service_memory)(void)
                     case 0x37EE: // Sector register
                     case 0x37EF: // Data register
                         // get data byte
-                        sio_hw->gpio_clr = 1 << DATAB_OE_PIN;
+                        clr_gpio(DATAB_OE_PIN);
                         asm(
                         "nop\n\t"
                         "nop\n\t"
                         "nop\n\t"
                         );
                         data = sio_hw->gpio_in >> D0_PIN;
-                        sio_hw->gpio_set = 1 << DATAB_OE_PIN;
+                        set_gpio(DATAB_OE_PIN);
 
                         fdc_write(addr.w, data);
 
@@ -429,14 +449,14 @@ void __not_in_flash_func(service_memory)(void)
                             byte ch;
 
                             // get data byte
-                            sio_hw->gpio_clr = 1 << DATAB_OE_PIN;
+                            clr_gpio(DATAB_OE_PIN);
                             asm(
                             "nop\n\t"
                             "nop\n\t"
                             "nop\n\t"
                             );
                             ch = sio_hw->gpio_in >> D0_PIN;
-                            sio_hw->gpio_set = 1 << DATAB_OE_PIN;
+                            set_gpio(DATAB_OE_PIN);
 
                             fdc_request(addr.w, ch);
                         }
@@ -448,14 +468,14 @@ void __not_in_flash_func(service_memory)(void)
             else // WR to upper 32k memory
             {
                 // get data byte
-                sio_hw->gpio_clr = 1 << DATAB_OE_PIN;
+                clr_gpio(DATAB_OE_PIN);
                 asm(
                 "nop\n\t"
                 "nop\n\t"
                 "nop\n\t"
                 );
                 by_memory[addr.w-0x8000] = sio_hw->gpio_in >> D0_PIN;
-                sio_hw->gpio_set = 1 << DATAB_OE_PIN;
+                set_gpio(DATAB_OE_PIN);
 
                 ReleaseWait();
             }
