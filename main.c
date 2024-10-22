@@ -232,7 +232,7 @@ void __not_in_flash_func(service_memory)(void)
         set_gpio(WAIT_PIN);
 
         // read low address byte
-        sio_hw->gpio_clr = 1u << ADDRL_OE_PIN;
+        clr_gpio(ADDRL_OE_PIN);
         asm(
         "nop\n\t"
         "nop\n\t"
@@ -242,7 +242,7 @@ void __not_in_flash_func(service_memory)(void)
         set_gpio(ADDRL_OE_PIN);
 
         // read high address byte
-        sio_hw->gpio_clr = 1u << ADDRH_OE_PIN;
+        clr_gpio(ADDRH_OE_PIN);
         asm(
         "nop\n\t"
         "nop\n\t"
@@ -294,7 +294,7 @@ void __not_in_flash_func(service_memory)(void)
                             if (!g_byFdcIntrActive)
                             {
                                 // deactivate intr
-                                sio_hw->gpio_clr = 1u << INT_PIN;
+                                clr_gpio(INT_PIN);
                             }
                         }
 
@@ -308,16 +308,16 @@ void __not_in_flash_func(service_memory)(void)
                         ReleaseWait();
 
                         // turn bus around
-                        set_gpio(DATAB_OE_PIN); // disable data bus transciever
-                        sio_hw->gpio_oe_clr = 0xFF << D0_PIN; // reset data pins (D0-D7) inputs
-                        set_gpio(DIR_PIN);      // A to B direction
+                        set_gpio(DATAB_OE_PIN);                 // disable data bus transciever
+                        sio_hw->gpio_oe_clr = 0xFF << D0_PIN;   // reset data pins (D0-D7) inputs
+                        set_gpio(DIR_PIN);                      // A to B direction
                         break;
 
                     case 0x37EC: // Cmd/Status register
                         if (!g_byRtcIntrActive)
                         {
                             // deactivate intr
-                            sio_hw->gpio_clr = 1u << INT_PIN;
+                            clr_gpio(INT_PIN);
                         }
 
                     case 0x37ED: // Track register
@@ -343,7 +343,6 @@ void __not_in_flash_func(service_memory)(void)
                     default:
                         if ((addr.w >= FDC_RESPONSE_ADDR_START) && (addr.w <= FDC_RESPONSE_ADDR_STOP)) // fdc.cmd response area
                         {
-
                             data = fdc_response(addr.w);
                             clr_gpio(DIR_PIN);                      // B to A direction
                             sio_hw->gpio_oe_set = 0xFF << D0_PIN;   // make data pins (D0-D7) outputs
