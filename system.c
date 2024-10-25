@@ -41,7 +41,6 @@ uint32_t g_dwResetCount;
 uint8_t  g_byResetFDC;
 
 uint8_t  g_byMotorWasOn;
-uint8_t  g_byFlushTraceBuffer;
 
 uint64_t g_nTimeNow;
 uint64_t g_nPrevTime;
@@ -56,13 +55,12 @@ uint64_t g_nWaitTime;
 void InitVars(void)
 {
 	g_dwRotationTime = 200000;	// 200ms
-	g_dwIndexTime    = (g_dwRotationTime * 5) / 360;	// 5 degrees for index
+	g_dwIndexTime    = 2800;	// 2.8ms
 	g_dwResetTime    = 1000;	// 1ms
 
 	g_byMotorWasOn = 0;
-	g_byFlushTraceBuffer = 0;
-	g_nTimeNow  = time_us_64();
-	g_nPrevTime = g_nTimeNow;
+	g_nTimeNow     = time_us_64();
+	g_nPrevTime    = g_nTimeNow;
 
 	g_nRtcIntrCount = 0;
 
@@ -71,7 +69,6 @@ void InitVars(void)
 	g_byResetFDC     = FALSE;
 
 	g_byRtcIntrActive = false;
-	g_byFdcIntrActive = false;
 }
 
 //////////////////////////////////////////////////////////////////////////////////////////////////
@@ -529,28 +526,17 @@ uint32_t GetTimeDiff(uint64_t nTime1, uint64_t nTime2)
 ///////////////////////////////////////////////////////////////////////////////
 void UpdateCounters(void)
 {
-	uint32_t nDiff;
+	uint64_t nDiff;
 
-	g_nTimeNow = time_us_64();
-
-	nDiff = GetTimeDiff(g_nTimeNow, g_nPrevTime);
-
-	g_nPrevTime = g_nTimeNow;
-
-	g_dwRotationTime = 200000;	// 200ms
-	g_dwIndexTime    = (g_dwRotationTime * 5) / 360;	// 5 degrees for index
-	g_dwResetTime    = 1000;	// 1ms
-
-	g_byMotorWasOn = 0;
-	g_byFlushTraceBuffer = 0;
 	g_nTimeNow  = time_us_64();
+	nDiff       = g_nTimeNow - g_nPrevTime; //GetTimeDiff(g_nTimeNow, g_nPrevTime);
 	g_nPrevTime = g_nTimeNow;
 
 	g_nRtcIntrCount += nDiff;
 
 	if (g_nRtcIntrCount > 25000) // 25mS => 40Hz RTC interrupt
 	{
-		g_nRtcIntrCount = 0;
+		g_nRtcIntrCount -= 25000;
 		g_byRtcIntrActive = true;
 	    gpio_put(INT_PIN, 1); // activate intr
 	}
@@ -566,7 +552,6 @@ void UpdateCounters(void)
 
 	if (g_FDC.dwMotorOnTimer != 0)
 	{
-        gpio_put(LED_PIN, 0);
 		g_byMotorWasOn = 1;
 
 		g_FDC.dwMotorOnTimer  = CountDown(g_FDC.dwMotorOnTimer, nDiff);
@@ -581,10 +566,12 @@ void UpdateCounters(void)
 		if (g_FDC.dwRotationCount < g_dwIndexTime)
 		{
 			FdcSetFlag(eIndex);
+			gpio_put(LED_PIN, 1);
 		}
 		else
 		{
 			FdcClrFlag(eIndex);
+			gpio_put(LED_PIN, 0);
 		}
 	}
 	else
