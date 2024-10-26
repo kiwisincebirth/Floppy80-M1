@@ -14,6 +14,7 @@
 #include "sd_core.h"
 
 //#define ENABLE_LOGGING 1
+//#pragma GCC optimize ("O0")
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -891,7 +892,16 @@ void FdcReadDmkSector(int nDriveSel, int nSide, int nTrack, int nSector)
 	// g_FDC.byTrackData[nSide][g_FDC.nTrackSectorOffset+4] byte length (log 2, minus seven), 0 => 128 bytes; 1 => 256 bytes; etc.
 
 	g_stSector.nSectorDataSize = nDataSize;
-	g_stSector.nSectorSize     = 128 << *(pby+4*nDataSize);
+
+	if (g_FDC.byCurCommand & 0x08) // IBM format
+	{
+		g_stSector.nSectorSize = 128 << *(pby+4*nDataSize);
+	}
+	else // Non-IBM format
+	{
+		g_stSector.nSectorSize = 16; // 16 << *(pby+4*nDataSize);
+	}
+
 	g_dtDives[nDrive].dmk.nSectorSize = g_stSector.nSectorSize;
 
 	// g_FDC.byTrackData[g_FDC.nSectorOffset+5..6] CRC (calculation starts with the three 0xA1/0xF5 bytes preceeding the 0xFE)
@@ -949,7 +959,7 @@ void FdcReadDmkSector(int nDriveSel, int nSide, int nTrack, int nSector)
 
 	// for double density drives nDataOffset is the index of the first 0xA1 byte in the 0xA1, 0xA1, 0xA1, 0xFB/0xF8 sequence
 	//
-	// for single density 0xA1, 0xA1 and 0xA1 are not present, CRC starts st the data mark (0xFB/0xF8)
+	// for single density 0xA1, 0xA1 and 0xA1 are not present, CRC starts at the data mark (0xFB/0xF8)
 
 	g_FDC.byRecordMark           = g_tdTrack.byTrackData[nDataOffset+nDensityAdjust*nDataSize];
 	g_stSector.nSectorDataOffset = nDataOffset + (nDensityAdjust + 1) * nDataSize;
@@ -1549,12 +1559,11 @@ void FdcProcessStepOutCommand(void)
 }
 
 //-----------------------------------------------------------------------------
-// Command code 1 0 0 m F2 E F1 0
+// Command code 1 0 0 m b E 0 0
 //
 // m  = 0 - single record read; 1 - multiple record read;
-// F2 = 0 - compare for side 0; 1 - compare for side 1;
+// b  = 0 - Non-IBM format (16 to 4096 bytes); 1 - IBM format (128 to 1024 bytes);
 // E  = 0 - no delay; 1 - 15 ms delay;
-// F1 = 0 - disable side select compare; 1 - enable side select compare;
 //
 void FdcProcessReadSectorCommand(void)
 {
@@ -2709,7 +2718,7 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd)
 	}
 	else if ((byCmd & 0xF0) == 0x80) // 1000xxxx
 	{
-		sprintf(psz, "    FDC CMD: DRV: 0x%02X TRK: 0x%02X RSEC: 0x%02X\r\n", g_FDC.byDriveSel, g_FDC.byTrack, g_FDC.bySector);
+		sprintf(psz, "    FDC CMD: %02X DRV: 0x%02X TRK: 0x%02X RSEC: 0x%02X\r\n", byCmd, g_FDC.byDriveSel, g_FDC.byTrack, g_FDC.bySector);
 	}
 	else if ((byCmd & 0xF0) == 0x90) // 1001xxxx
 	{

@@ -82,5 +82,6 @@
         "tusb_fifo.h": "c",
         "file.h": "c",
         "video.h": "c"
-    }
+    },
+    "cortex-debug.variableUseNaturalFormat": false
 }

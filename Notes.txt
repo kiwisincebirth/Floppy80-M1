@@ -6,7 +6,7 @@ Boots
 + LDOS 5.3.1
 + TRSDOS 2.3
 + UltraDOS 4.2.0
-- VTDOS 3.0.0
++ VTDOS 3.0.0-
 + VTDOS 4.0.1
 
 Formats Drive
@@ -41,7 +41,6 @@ FDC/CMD support
 + UltraDOS 4.2.0
 + VTDOS 3.0.0
 + VTDOS 4.0.1
-
 
 + Positive
 - Negative
