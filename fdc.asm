@@ -147,8 +147,8 @@ getsta:
 	ld	hl,RESPONSE_ADDR+2
 	call	print
 
-	ld	a,(REQUEST_ADDR)	; if mounting an ini file then hang until reset pressed
-	cp	80h
+	ld	a,(opcode)	; if mounting an ini file then hang until reset pressed
+	cp	FINDINI_CMD
 	jr	nz,getsta_exit
 
 	ld	hl,prompt_reset
@@ -379,7 +379,7 @@ getlist:
 
 	; if ((opcode) == 0x80) then set parm3 = '0' and call mountfile
 	ld	a,(opcode)
-	cp	80h
+	cp	FINDINI_CMD
 	jr	nz,getlist1
 
 	; parm3[0] = '0'
