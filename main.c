@@ -19,6 +19,8 @@
 #include "video.h"
 #include "cli.h"
 
+#define NopDelay() __nop(); __nop(); __nop(); __nop();
+
 byte by_memory[0x8000];
 
 byte g_byRtcIntrActive;
@@ -348,10 +350,7 @@ void __not_in_flash_func(ServiceSlowWriteOperation)(word addr)
 
         // get data byte
         clr_gpio(DATAB_OE_PIN);
-        __nop();
-        __nop();
-        __nop();
-        __nop();
+        NopDelay();
         ch = get_gpio_data_byte();
         set_gpio(DATAB_OE_PIN);
 
@@ -367,10 +366,7 @@ void __not_in_flash_func(ServiceSlowWriteOperation)(word addr)
             case 0x37E3: // drive select
                 // get data byte
                 clr_gpio(DATAB_OE_PIN);
-                __nop();
-                __nop();
-                __nop();
-                __nop();
+                NopDelay();
                 data = get_gpio_data_byte();
                 set_gpio(DATAB_OE_PIN);
 
@@ -383,10 +379,7 @@ void __not_in_flash_func(ServiceSlowWriteOperation)(word addr)
             case 0x37EF: // Data register
                 // get data byte
                 clr_gpio(DATAB_OE_PIN);
-                __nop();
-                __nop();
-                __nop();
-                __nop();
+                NopDelay();
                 data = get_gpio_data_byte();
                 set_gpio(DATAB_OE_PIN);
 
@@ -400,10 +393,7 @@ void __not_in_flash_func(ServiceSlowWriteOperation)(word addr)
 
                     // get data byte
                     clr_gpio(DATAB_OE_PIN);
-                    __nop();
-                    __nop();
-                    __nop();
-                    __nop();
+                    NopDelay();
                     ch = get_gpio_data_byte();
                     set_gpio(DATAB_OE_PIN);
 
@@ -427,10 +417,7 @@ void __not_in_flash_func(ServiceFastWriteOperation)(word addr)
 
         // get data byte
         clr_gpio(DATAB_OE_PIN);
-        __nop();
-        __nop();
-        __nop();
-        __nop();
+        NopDelay();
         ch = get_gpio_data_byte();
         set_gpio(DATAB_OE_PIN);
 
@@ -440,10 +427,7 @@ void __not_in_flash_func(ServiceFastWriteOperation)(word addr)
     {
         // get data byte
         clr_gpio(DATAB_OE_PIN);
-        __nop();
-        __nop();
-        __nop();
-        __nop();
+        NopDelay();
         by_memory[addr-0x8000] = get_gpio_data_byte();
         set_gpio(DATAB_OE_PIN);
     }
@@ -462,19 +446,13 @@ word __not_in_flash_func(get_address)(void)
 
     // read low address byte
     clr_gpio(ADDRL_OE_PIN);
-    __nop();
-    __nop();
-    __nop();
-    __nop();
+    NopDelay();
     addr.b[0] = get_gpio_data_byte();
     set_gpio(ADDRL_OE_PIN);
 
     // read high address byte
     clr_gpio(ADDRH_OE_PIN);
-    __nop();
-    __nop();
-    __nop();
-    __nop();
+    NopDelay();
     addr.b[1] = get_gpio_data_byte();
     set_gpio(ADDRH_OE_PIN);
 
