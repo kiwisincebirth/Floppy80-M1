@@ -5,13 +5,9 @@
 #include "defines.h"
 #include "video.h"
 
-#define VIDEO_BUFFER_SIZE 0x800
-#define VIDEO_NUM_COLS 64
-#define VIDEO_NUM_ROWS 16
-
 byte g_byVideoMemory[VIDEO_BUFFER_SIZE];
-word g_wVideoLinesModified[VIDEO_NUM_ROWS];
-word g_wPrevVideoLinesModified[VIDEO_NUM_ROWS];
+word g_wVideoLinesModified[MAX_VIDEO_LINES];
+word g_wPrevVideoLinesModified[MAX_VIDEO_LINES];
 
 byte g_byLineBuffer[128];
 

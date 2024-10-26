@@ -21,6 +21,11 @@
 
 #define NopDelay() __nop(); __nop(); __nop(); __nop();
 
+extern byte g_byVideoMemory[VIDEO_BUFFER_SIZE];
+extern word g_wVideoLinesModified[MAX_VIDEO_LINES];
+extern BufferType g_bFdcRequest;
+extern BufferType g_bFdcResponse;
+
 byte by_memory[0x8000];
 
 byte g_byRtcIntrActive;
@@ -294,7 +299,17 @@ void __not_in_flash_func(ServiceFastReadOperation)(word addr)
     {
         if ((addr >= FDC_RESPONSE_ADDR_START) && (addr <= FDC_RESPONSE_ADDR_STOP)) // fdc.cmd response area
         {
-            data = fdc_response(addr);
+            addr -= FDC_RESPONSE_ADDR_START;
+
+            if (addr < FDC_CMD_SIZE)
+            {
+                data = g_bFdcResponse.cmd[addr];
+            }
+            else
+            {
+                data = g_bFdcResponse.buf[addr-FDC_CMD_SIZE];
+            }
+
             clr_gpio(DIR_PIN);      // B to A direction
             set_bus_as_output();    // make data pins (D0-D7) outputs
             clr_gpio(DATAB_OE_PIN); // enable data bus transciever
@@ -360,29 +375,38 @@ void __not_in_flash_func(ServiceSlowWriteOperation)(word addr)
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(ServiceFastWriteOperation)(word addr)
 {
+    byte data;
+
     if ((addr >= FDC_REQUEST_ADDR_START) && (addr <= FDC_REQUEST_ADDR_STOP)) // fdc.cmd request area
     {
-        byte ch;
-
         // get data byte
         clr_gpio(DATAB_OE_PIN);
         NopDelay();
-        ch = get_gpio_data_byte();
+        data = get_gpio_data_byte();
         set_gpio(DATAB_OE_PIN);
 
-        fdc_request(addr, ch);
+        addr -= FDC_REQUEST_ADDR_START;
+
+        if (addr < FDC_CMD_SIZE)
+        {
+            g_bFdcRequest.cmd[addr] = data;
+        }
+        else
+        {
+            g_bFdcRequest.buf[addr-FDC_CMD_SIZE] = data;
+        }
     }
-    else if ((addr >= 0x3C00) && (addr <= 0x3FFF))
+    else if ((addr >= VIDEO_ADDR_START) && (addr <= VIDEO_ADDR_END))
     {
-        byte ch;
-
         // get data byte
         clr_gpio(DATAB_OE_PIN);
         NopDelay();
-        ch = get_gpio_data_byte();
+        data = get_gpio_data_byte();
         set_gpio(DATAB_OE_PIN);
 
-        VideoWrite(addr, ch);
+        addr -= VIDEO_ADDR_START;
+        g_byVideoMemory[addr] = data;
+        ++g_wVideoLinesModified[addr/VIDEO_NUM_COLS];
     }
     else if (addr >= 0x8000) // WR to upper 32k memory
     {
@@ -441,7 +465,7 @@ void __not_in_flash_func(service_memory)(void)
 
         addr = get_address();
 
-        if ((addr >= 0x3400) && (addr < 0x3C00)) // activate WAIT_PIN
+        if ((addr >= 0x37E0) && (addr <= 0x37EF)) // activate WAIT_PIN
         {
             set_gpio(WAIT_PIN);
             fast = 0;

@@ -80,6 +80,7 @@
         "tusb_common.h": "c",
         "osal.h": "c",
         "tusb_fifo.h": "c",
-        "file.h": "c"
+        "file.h": "c",
+        "video.h": "c"
     }
 }

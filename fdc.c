@@ -173,20 +173,8 @@ uint32_t g_dwPrevTraceCycleCount = 0;
 char     g_szBootConfig[80];
 BYTE     g_byBootConfigModified;
 
-#pragma pack(push)  /* push current alignment to stack */
-#pragma pack(1)     /* set alignment to 1-byte boundary */
-
-	#define FDC_CMD_SIZE 2
-
-	typedef struct {
-		byte cmd[FDC_CMD_SIZE];
-		byte buf[FDC_REQUEST_SIZE-FDC_CMD_SIZE];
-	} BufferType;
-
-	BufferType g_bFdcRequest;
-	BufferType g_bFdcResponse;
-
-#pragma pack(pop)   /* restore original alignment from stack */
+BufferType g_bFdcRequest;
+BufferType g_bFdcResponse;
 
 file*   g_fOpenFile;
 DIR     g_dj;				// Directory object
@@ -2973,46 +2961,4 @@ void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 
 //	FdcGetDriveIndex(byData);
 	g_FDC.dwMotorOnTimer = 2000000;
-}
-
-//-----------------------------------------------------------------------------
-// g_byFdcRequestBuffer[0]
-//   0x01 - get status
-void __not_in_flash_func(fdc_request)(word addr, byte data)
-{
-    if ((addr < FDC_REQUEST_ADDR_START) || (addr > FDC_REQUEST_ADDR_STOP)) // fdc.cmd request area
-    {
-        return;
-    }
-
-    addr -= FDC_REQUEST_ADDR_START;
-
-	if (addr < FDC_CMD_SIZE)
-	{
-		g_bFdcRequest.cmd[addr] = data;
-	}
-	else
-	{
-	    g_bFdcRequest.buf[addr-FDC_CMD_SIZE] = data;
-	}
-}
-
-//-----------------------------------------------------------------------------
-byte __not_in_flash_func(fdc_response)(word addr)
-{
-    if ((addr < FDC_RESPONSE_ADDR_START) || (addr > FDC_RESPONSE_ADDR_STOP)) // fdc.cmd request area
-    {
-        return 0;
-    }
-
-    addr -= FDC_RESPONSE_ADDR_START;
-
-	if (addr < FDC_CMD_SIZE)
-	{
-		return g_bFdcResponse.cmd[addr];
-	}
-	else
-	{
-		return g_bFdcResponse.buf[addr-FDC_CMD_SIZE];
-	}
 }

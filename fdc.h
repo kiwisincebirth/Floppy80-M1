@@ -340,6 +340,26 @@ typedef struct {
 	int   nTrasferIndex;
 } FdcType;
 
+#define FDC_REQUEST_SIZE 0x200
+#define FDC_REQUEST_ADDR_START 0x3000
+#define FDC_REQUEST_ADDR_STOP  (FDC_REQUEST_ADDR_START+FDC_REQUEST_SIZE-1)
+
+#define FDC_RESPONSE_SIZE 0x200
+#define FDC_RESPONSE_ADDR_START (FDC_REQUEST_ADDR_START+FDC_RESPONSE_SIZE)
+#define FDC_RESPONSE_ADDR_STOP  (FDC_RESPONSE_ADDR_START+FDC_RESPONSE_SIZE-1)
+
+#pragma pack(push)  /* push current alignment to stack */
+#pragma pack(1)     /* set alignment to 1-byte boundary */
+
+	#define FDC_CMD_SIZE 2
+
+	typedef struct {
+		byte cmd[FDC_CMD_SIZE];
+		byte buf[FDC_REQUEST_SIZE-FDC_CMD_SIZE];
+	} BufferType;
+
+#pragma pack(pop)   /* restore original alignment from stack */
+
 /* ==============================================================*/
 
 extern FdcType   g_FDC;
@@ -369,17 +389,6 @@ void fdc_write_drive_select(byte byData);
 byte fdc_read_nmi(void);
 void fdc_write_nmi(byte byData);
 void fdc_process_command_request(byte by);
-
-#define FDC_REQUEST_SIZE 0x200
-#define FDC_REQUEST_ADDR_START 0x3000
-#define FDC_REQUEST_ADDR_STOP  (FDC_REQUEST_ADDR_START+FDC_REQUEST_SIZE-1)
-
-#define FDC_RESPONSE_SIZE 0x200
-#define FDC_RESPONSE_ADDR_START (FDC_REQUEST_ADDR_START+FDC_RESPONSE_SIZE)
-#define FDC_RESPONSE_ADDR_STOP  (FDC_RESPONSE_ADDR_START+FDC_RESPONSE_SIZE-1)
-
-void fdc_request(word addr, byte data);
-byte fdc_response(word addr);
 
 #ifdef __cplusplus
 }
