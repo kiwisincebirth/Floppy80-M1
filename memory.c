@@ -244,6 +244,8 @@ void __not_in_flash_func(service_memory)(void)
         // wait for MREQ to go active
         while (get_gpio(MREQ_PIN) != 0);
 
+        set_gpio(WAIT_PIN);
+
         // read low address byte
         clr_gpio(ADDRL_OE_PIN);
         NopDelay();

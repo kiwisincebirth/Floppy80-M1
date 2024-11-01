@@ -1227,9 +1227,6 @@ error1:		ascii	'Error: drive index not specified on command line',13,13,0
 imperr1:	ascii	'Error: invalid file specification',13,13,0
 imperr2:	ascii	'Error: unable to open the specified file',13,13,0
 
-model3:		ascii	'Detected as a Model 3',13,0
-model4:		ascii	'Detected as a Model 4',13,0
-
 cscr:		ascii   ' ', 28, 31, 15, 0
 space:		ascii	' ', 0
 openr:		ascii	', r', 0

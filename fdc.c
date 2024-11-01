@@ -14,7 +14,7 @@
 #include "sd_core.h"
 
 //#define ENABLE_LOGGING 1
-//#pragma GCC optimize ("O0")
+#pragma GCC optimize ("Og")
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -190,6 +190,8 @@ char    g_szFindFilter[80];
 FILINFO g_fiFindResults[FIND_MAX_SIZE];
 int     g_nFindIndex;
 int     g_nFindCount;
+
+BYTE    g_byTrackBuffer[MAX_TRACK_SIZE];
 
 //-----------------------------------------------------------------------------
 int __not_in_flash_func(FdcGetDriveIndex)(int nDriveSel)
@@ -859,10 +861,15 @@ void FdcReadDmkSector(int nDriveSel, int nSide, int nTrack, int nSector)
 	int   nDrive, nDataOffset, nDensityAdjust;
 	int   nDataSize = 1;
 
-	g_stSector.nSectorDataSize = 1;
+	g_FDC.nDataSize = 1;
 
 	nDrive = FdcGetDriveIndex(nDriveSel);
 	
+	if ((nDrive == 1) && (nTrack == 3))
+	{
+		nDrive = nDrive;
+	}
+
 	if (nDrive < 0)
 	{
 		return;
@@ -891,7 +898,7 @@ void FdcReadDmkSector(int nDriveSel, int nSide, int nTrack, int nSector)
 	// g_FDC.byTrackData[nSide][g_FDC.nTrackSectorOffset+3] sector number    (should be the same as the nSector parameter)
 	// g_FDC.byTrackData[nSide][g_FDC.nTrackSectorOffset+4] byte length (log 2, minus seven), 0 => 128 bytes; 1 => 256 bytes; etc.
 
-	g_stSector.nSectorDataSize = nDataSize;
+	g_FDC.nDataSize = nDataSize;
 
 	if (g_FDC.byCurCommand & 0x08) // IBM format
 	{
@@ -1462,7 +1469,7 @@ void FdcProcessStepCommand(void)
 // u = 1 - update track register; 0 - do not update track register;
 // h = 1 - load head at begining; 0 - unload head at begining;
 // V = 1 - verify on destination track
-// r1/r0 - steppeing motor rate
+// r1/r0 - stepping motor rate
 //
 void FdcProcessStepInCommand(void)
 {
@@ -1720,7 +1727,25 @@ void FdcProcessForceInterruptCommand(void)
 // S = 1 - Do not synchronize to AM; 0 - Synchronize to AM;
 void FdcProcessReadTrackCommand(void)
 {
+	int nSide  = FdcGetSide(g_FDC.byDriveSel);
+	int nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
+
 	g_FDC.byCommandType = 3;
+
+	g_tdTrack.nTrack = 255;
+
+	FdcReadTrack(nDrive, nSide, g_FDC.byTrack);
+
+	g_tdTrack.nDrive       = nDrive;
+	g_tdTrack.nSide        = nSide;
+	g_tdTrack.nTrack       = g_FDC.byTrack;
+	g_tdTrack.pbyReadPtr   = g_tdTrack.byTrackData + 0x80;
+	g_tdTrack.nReadSize    = g_dtDives[g_tdTrack.nDrive].dmk.wTrackLength;
+	g_tdTrack.nReadCount   = g_tdTrack.nReadSize;
+	g_FDC.nDataSize        = 1;
+	g_FDC.nServiceState    = 0;
+
+	g_FDC.nProcessFunction = psReadTrack;
 }
 
 //-----------------------------------------------------------------------------
@@ -1874,6 +1899,47 @@ void FdcServiceReadSector(void)
 			g_FDC.nReadStatusCount = 0;
 			++g_FDC.nServiceState;
 			FdcClrFlag(eBusy);
+			FdcGenerateIntr();
+			g_FDC.nProcessFunction = psIdle;
+			break;
+	}
+}
+
+//-----------------------------------------------------------------------------
+void FdcServiceReadTrack(void)
+{
+	switch (g_FDC.nServiceState)
+	{
+		case 0:
+			g_FDC.nReadStatusCount = 0;
+			g_FDC.dwStateCounter = 5;
+			++g_FDC.nServiceState;
+			break;
+
+		case 1: // give host time to get ready for data
+			if (g_FDC.dwStateCounter > 0)
+			{
+				--g_FDC.dwStateCounter;
+				break;
+			}
+
+			FdcSetRecordType(g_FDC.byRecordMark);
+			FdcGenerateDRQ();
+			g_FDC.dwStateCounter = 5;
+			++g_FDC.nServiceState;
+			break;
+
+		case 2:
+			if (g_tdTrack.nReadCount > 0)
+			{
+				break;
+			}
+
+			g_FDC.nReadStatusCount = 0;
+			++g_FDC.nServiceState;
+			FdcClrFlag(eBusy);
+			FdcGenerateDRQ();
+			FdcGenerateIntr();
 			g_FDC.nProcessFunction = psIdle;
 			break;
 	}
@@ -2053,43 +2119,51 @@ void FdcServiceWriteSector(void)
 void FdcProcessTrackData(TrackType* ptdTrack)
 {
 	BYTE* pbyCrcStart = ptdTrack->byTrackData;
-	BYTE* pby = ptdTrack->byTrackData + 0x80;
+	BYTE* pbySrc = ptdTrack->byTrackData + 0x80;
+	BYTE* pbyDst = g_byTrackBuffer;
 	WORD  wCRC16;
 	int   i, nSide = 0;
 
+	if (g_FDC.byTrack == 3)
+	{
+		g_FDC.byTrack = 3;
+	}
+
 	for (i = 0x80; i < ptdTrack->nTrackSize; ++i)
 	{
-		switch (*pby)
+		*pbyDst = *pbySrc;
+
+		switch (*pbySrc)
 		{
 			case 0xF5:
-				pbyCrcStart = pby;
-				*pby = 0xA1;
+				pbyCrcStart = pbyDst;
+				*pbyDst = 0xA1;
 				break;
 			
 			case 0xF6:
-				*pby = 0xC2;
+				*pbyDst = 0xC2;
 				break;
 
 			case 0xF7:
 				if (ptdTrack->byDensity == eDD)
 				{
-					wCRC16 = Calculate_CRC_CCITT(pbyCrcStart-2, (int)(pby-pbyCrcStart+2), 1);
+					wCRC16 = Calculate_CRC_CCITT(pbyCrcStart-2, (int)(pbySrc-pbyCrcStart+2), 1);
 				}
 				else
 				{
-					wCRC16 = Calculate_CRC_CCITT(pbyCrcStart, (int)(pby-pbyCrcStart), 1);
+					wCRC16 = Calculate_CRC_CCITT(pbyCrcStart, (int)(pbySrc-pbyCrcStart), 1);
 				}
 
-				*pby = wCRC16 >> 8;
-				++pby;
+				*pbyDst = wCRC16 >> 8;
+				++pbyDst;
 				++i;
-				*pby = wCRC16 & 0xFF;
+				*pbyDst = wCRC16 & 0xFF;
 				break;
 
 			case 0xFB:
 				if (ptdTrack->byDensity == eSD) // single density
 				{
-					pbyCrcStart = pby;
+					pbyCrcStart = pbySrc;
 				}
 
 				break;
@@ -2097,15 +2171,18 @@ void FdcProcessTrackData(TrackType* ptdTrack)
 			case 0xFE:
 				if (ptdTrack->byDensity == eSD) // single density
 				{
-					pbyCrcStart = pby;
-					ptdTrack->nSide = *(pby+2);
+					pbyCrcStart = pbySrc;
+					ptdTrack->nSide = *(pbySrc+2);
 				}
 
 				break;
 		}
 		
-		++pby;
+		++pbySrc;
+		++pbyDst;
 	}
+
+	memcpy(ptdTrack->byTrackData+0x80, g_byTrackBuffer, sizeof(ptdTrack->byTrackData)-0x80);
 }
 
 //-----------------------------------------------------------------------------
@@ -2294,7 +2371,7 @@ void FdcServiceWriteTrack(void)
 }
 
 //-----------------------------------------------------------------------------
-void FdcServiceSeeek(void)
+void FdcServiceSeek(void)
 {
 	if (g_FDC.dwStateCounter > 0)
 	{
@@ -2343,7 +2420,7 @@ void FdcProcessStatusRequest(byte print)
 	}
 	else
 	{
-		strcpy(szLineEnd, "\n");
+		strcpy(szLineEnd, "\r");
 	}
 
     memset(&g_bFdcResponse, 0, sizeof(g_bFdcResponse));
@@ -2653,6 +2730,10 @@ void FdcServiceStateMachine(void)
 			FdcServiceReadSector();
 			break;
 		
+		case psReadTrack:
+			FdcServiceReadTrack();
+			break;
+
 		case psWriteSector:
 			FdcServiceWriteSector();
 			break;
@@ -2666,7 +2747,7 @@ void FdcServiceStateMachine(void)
 			break;
 
 		case psSeek:
-			FdcServiceSeeek();
+			FdcServiceSeek();
 			break;
 	}
 }
@@ -2679,71 +2760,71 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd)
 
 	if ((byCmd & 0xF0) == 0)         // 0000xxxx
 	{
-		strcpy(psz, "    FDC CMD: Restore\r\n");
+		sprintf(psz, "CMD: %02X Restore", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0x10) // 0001xxxx
 	{
-		sprintf(psz, "    FDC CMD: SEEK 0x%02X, From 0x%02X\r\n", g_FDC.byData, g_FDC.byTrack);
+		sprintf(psz, "CMD: %02X SEEK %02X, From %02X", byCmd, g_FDC.byData, g_FDC.byTrack);
 	}
 	else if ((byCmd & 0xF0) == 0x20) // 0010xxxx
 	{
-		strcpy(psz, "    FDC CMD: Step, Do Not Update Track Register\r\n");
+		sprintf(psz, "CMD: %02X Step, Do Not Update Track Register", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0x30) // 0011xxxx
 	{
-		strcpy(psz, "    FDC CMD: Step, Update Track Register\r\n");
+		sprintf(psz, "CMD: %02X Step, Update Track Register", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0x40) // 0100xxxx
 	{
-		strcpy(psz, "    FDC CMD: Step In, Do Not Update Track Register\r\n");
+		sprintf(psz, "CMD: %02X Step In, Do Not Update Track Register", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0x50) // 0101xxxx
 	{
-		strcpy(psz, "    FDC CMD: Step In, Update Track Register\r\n");
+		sprintf(psz, "CMD: %02X Step In, Update Track Register", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0x60) // 0110xxxx
 	{
-		strcpy(psz, "    FDC CMD: Step Out, Do Not Update Track Register\r\n");
+		sprintf(psz, "CMD: %02X Step Out, Do Not Update Track Register", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0x70) // 0111xxxx
 	{
-		strcpy(psz, "    FDC CMD: Step Out, Update Track Register\r\n");
+		sprintf(psz, "CMD: %02X Step Out, Update Track Register", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0x80) // 1000xxxx
 	{
-		sprintf(psz, "    FDC CMD: %02X DRV: 0x%02X TRK: 0x%02X RSEC: 0x%02X\r\n", byCmd, g_FDC.byDriveSel, g_FDC.byTrack, g_FDC.bySector);
+		sprintf(psz, "CMD: %02X DRV: %02X TRK: %02X RSEC: %02X", byCmd, g_FDC.byDriveSel, g_FDC.byTrack, g_FDC.bySector);
 	}
 	else if ((byCmd & 0xF0) == 0x90) // 1001xxxx
 	{
-		strcpy(psz, "    FDC CMD: RSEC: Multiple Record\r\n");
+		sprintf(psz, "CMD: %02X RSEC: Multiple Record", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0xA0) // 1010xxxx
 	{
-		sprintf(psz, "    FDC CMD: WSEC: 0x%02X TRK: 0x%02X\r\n", g_FDC.bySector, g_FDC.byTrack);
+		sprintf(psz, "CMD: %02X WSEC: %02X TRK: %02X", byCmd, g_FDC.bySector, g_FDC.byTrack);
 	}
 	else if ((byCmd & 0xF0) == 0xB0) // 1011xxxx
 	{
-		strcpy(psz, "    FDC CMD: WSEC: Multiple Record\r\n");
+		sprintf(psz, "CMD: %02X WSEC: Multiple Record", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0xC0) // 1100xxxx
 	{
-		strcpy(psz, "    FDC CMD: Read Address\r\n");
+		sprintf(psz, "CMD: %02X Read Address", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0xD0) // 1101xxxx
 	{
-		sprintf(psz, "    FDC CMD: Force Interrupt (0x%02X)\r\n", byCmd);
+		sprintf(psz, "CMD: %02X Force Interrupt", byCmd);
 	}
 	else if ((byCmd & 0xF0) == 0xE0) // 1110xxxx
 	{
-		sprintf(psz, "    FDC CMD: RTRK: 0x%02X\r\n", g_FDC.byTrack);
+		sprintf(psz, "CMD: %02X RTRK: %02X", byCmd, g_FDC.byTrack);
 	}
 	else if ((byCmd & 0xF0) == 0xF0) // 1110xxxx
 	{
-		sprintf(psz, "    FDC CMD: WTRK: 0x%02X\r\n", g_FDC.byTrack);
+		sprintf(psz, "CMD: %02X WTRK: %02X", byCmd, g_FDC.byTrack);
 	}
 	else
 	{
-		strcpy(psz, "    FDC CMD: Unknown\r\n");
+		sprintf(psz, "CMD: %02X Unknownn", byCmd);
 	}
 }
 #endif
@@ -2789,6 +2870,7 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 			fdc_command_write(byData);
 #ifdef ENABLE_LOGGING
 			GetCommandText(szBuf, sizeof(szBuf), byData);
+			puts(szBuf);
 #endif
 			break;
 
@@ -2796,7 +2878,7 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 			g_FDC.byTrack = byData;
 
 #ifdef ENABLE_LOGGING
-		    sprintf(szBuf, "    FDC WRITE TRACK %02X\r\n", byData);
+		    printf("WR TRACK %02X\r\n", byData);
 #endif
 
 			break;
@@ -2805,7 +2887,7 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 			g_FDC.bySector = byData;
 
 #ifdef ENABLE_LOGGING
-		    sprintf(szBuf, "    FDC WRITE SECTOR %02X\r\n", byData);
+		    printf("WR SECTOR %02X\r\n", byData);
 #endif
 
 			break;
@@ -2827,20 +2909,17 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 			}
 
 #ifdef ENABLE_LOGGING
-		    sprintf(szBuf, "    FDC WRITE DATA %02X\r\n", byData);
+		    printf("WR DATA %02X\r\n", byData);
 #endif
 
 			break;
 	}
-
-#ifdef ENABLE_LOGGING
-	puts(szBuf);
-#endif
 }
 
 //-----------------------------------------------------------------------------
 byte __not_in_flash_func(fdc_read)(word wAddr)
 {
+	static BYTE byPrevStatus = 0;
 	WORD wReg;
 	BYTE byData = 0;
 #ifdef ENABLE_LOGGING
@@ -2855,7 +2934,11 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 			byData = g_FDC.byStatus;
 
 #ifdef ENABLE_LOGGING
-			printf("    FDC READ STATUS %02X\r\n", byData);
+			if (byPrevStatus != byData)
+			{
+				printf("RD STATUS %02X\r\n", byData);
+				byPrevStatus = byData;
+			}
 #endif
 
 			++g_FDC.nReadStatusCount;
@@ -2873,7 +2956,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 			byData = g_FDC.byTrack;
 
 #ifdef ENABLE_LOGGING
-    		printf("    FDC READ TRACK %02X\r\n", byData);
+    		printf("RD TRACK %02X\r\n", byData);
 #endif
 			break;
 
@@ -2881,7 +2964,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 			byData = g_FDC.bySector;
 
 #ifdef ENABLE_LOGGING
-			printf("    FDC READ SECTOR %02X\r\n", byData);
+			printf("RD SECTOR %02X\r\n", byData);
 #endif
 
 			break;
@@ -2893,7 +2976,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 				FdcClrFlag(eDataRequest);
 				++g_FDC.nDataRegReadCount;
 
-				g_tdTrack.pbyReadPtr += g_stSector.nSectorDataSize;
+				g_tdTrack.pbyReadPtr += g_FDC.nDataSize;
 				--g_tdTrack.nReadCount;
 
 				if (g_tdTrack.nReadCount == 0)
@@ -2902,14 +2985,13 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 					{
 						++g_FDC.bySector;
 #ifdef ENABLE_LOGGING
-		  				printf(szBuf, "    FDC READ NEXT SECTOR %02X\r\n", g_FDC.bySector);
+		  				printf(szBuf, "RD NEXT SECTOR %02X\r\n", g_FDC.bySector);
 #endif
 						fdc_command_write(0x98);
 					}
 					else
 					{
 						g_FDC.nDataRegReadCount = 0;
-						FdcGenerateIntr();
 					}
 				}
 				else
@@ -2925,7 +3007,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 			}
 
 #ifdef ENABLE_LOGGING
-		  	printf("    FDC READ DATA %02X\r\n", byData);
+		  	printf("RD DATA %02X\r\n", byData);
 #endif
 
 			break;
@@ -2946,7 +3028,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 {
 #ifdef ENABLE_LOGGING
-    printf("    FDC  WR DRVSEL %02X\r\n", byData);
+    printf("WR DRVSEL %02X\r\n", byData);
 #endif
 
 	g_FDC.byDriveSel = byData;

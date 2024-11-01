@@ -93,6 +93,7 @@ extern "C" {
 enum {
 	psIdle = 0,
 	psReadSector = 1,
+	psReadTrack,
 	psWriteSector,
 	psWriteTrack,
 	psSeek,
@@ -255,7 +256,6 @@ typedef struct {
 typedef struct {
 	int   nSector;
 	int   nSectorSize;
-	int   nSectorDataSize;
 	int   nSectorDataOffset;		// offset from the start of the track buffer of the first data byte of the sector specified by nSector
 	BYTE  bySectorDataAddressMark;
 } SectorType;
@@ -338,6 +338,7 @@ typedef struct {
 	BYTE  byTransferBuffer[256];
 	int   nTransferSize;
 	int   nTrasferIndex;
+	int   nDataSize;
 } FdcType;
 
 #define FDC_REQUEST_SIZE 0x200
