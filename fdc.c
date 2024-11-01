@@ -14,7 +14,7 @@
 #include "sd_core.h"
 
 //#define ENABLE_LOGGING 1
-#pragma GCC optimize ("O3")
+//#pragma GCC optimize ("Og")
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -2919,11 +2919,10 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 //-----------------------------------------------------------------------------
 byte __not_in_flash_func(fdc_read)(word wAddr)
 {
-	static BYTE byPrevStatus = 0;
 	WORD wReg;
 	BYTE byData = 0;
 #ifdef ENABLE_LOGGING
-    char szBuf[128];
+	static BYTE byPrevStatus = 0;
 #endif
 
 	wReg = wAddr & 0x03;
@@ -2985,7 +2984,7 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 					{
 						++g_FDC.bySector;
 #ifdef ENABLE_LOGGING
-		  				printf(szBuf, "RD NEXT SECTOR %02X\r\n", g_FDC.bySector);
+		  				printf("RD NEXT SECTOR %02X\r\n", g_FDC.bySector);
 #endif
 						fdc_command_write(0x98);
 					}
