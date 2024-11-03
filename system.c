@@ -541,6 +541,15 @@ void UpdateCounters(void)
 	    gpio_put(INT_PIN, 1); // activate intr
 	}
 
+	if (g_FDC.dwWaitTimeoutCount > 0)
+	{
+		g_FDC.dwWaitTimeoutCount = CountDown(g_FDC.dwWaitTimeoutCount, nDiff);
+		
+		if (g_FDC.dwWaitTimeoutCount == 0) // release wait line
+		{
+		}
+	}
+
 	if (g_FDC.dwMotorOnTimer != 0)
 	{
 		g_byMotorWasOn = 1;

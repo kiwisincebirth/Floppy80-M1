@@ -314,6 +314,7 @@ typedef struct {
 	BYTE  byWaitOutput;		// when 1 => wait line is being held low;
 							//      0 => wait line is released;
 
+	DWORD dwWaitTimeoutCount;
 	DWORD dwRotationCount;
 
 	DWORD dwMotorOnTimer;	// when not zero the drive motor is considered to be ON.
