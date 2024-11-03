@@ -3031,18 +3031,5 @@ void __not_in_flash_func(fdc_write_drive_select)(byte byData)
 #endif
 
 	g_FDC.byDriveSel = byData;
-
-	// do not allow a wait output if WAITTIMEOUT, INTRQ or DRQ are active
-	if (g_FDC.status.byIntrRequest == 0)
-	{
-		// in "real" hardware the wait is activated on rising edge of the DRV_SEL input
-		// here it is already activated by the PIO code on every FDC read/write operation
-		if ((byData & 0x40) != 0) // activate WAIT
-		{
-			g_FDC.dwWaitTimeoutCount = 2000;
-			g_FDC.byWaitOutput = 1;
-		}
-	}
-
 	g_FDC.dwMotorOnTimer = 2000000;
 }

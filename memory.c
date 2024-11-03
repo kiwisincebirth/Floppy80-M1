@@ -258,9 +258,7 @@ void __not_in_flash_func(service_memory)(void)
 
         if (addr.w >= 0x8000)
         {
-#ifdef PICO_RP2040
             set_gpio(WAIT_PIN);
-#endif
             ServiceHighMemoryOperation(addr.w);
         }
         else if ((addr.w >= 0x37E0) && (addr.w <= 0x37EF))

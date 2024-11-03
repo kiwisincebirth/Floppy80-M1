@@ -541,15 +541,6 @@ void UpdateCounters(void)
 	    gpio_put(INT_PIN, 1); // activate intr
 	}
 
-	if (g_FDC.dwWaitTimeoutCount > 0)
-	{
-		g_FDC.dwWaitTimeoutCount = CountDown(g_FDC.dwWaitTimeoutCount, nDiff);
-		
-		if (g_FDC.dwWaitTimeoutCount == 0) // release wait line
-		{
-		}
-	}
-
 	if (g_FDC.dwMotorOnTimer != 0)
 	{
 		g_byMotorWasOn = 1;
@@ -607,7 +598,6 @@ void UpdateCounters(void)
 				g_byMonitorReset = FALSE;
 				g_byResetFDC = 1;
 				FileCloseAll();
-				// FdcInit();
 			    multicore_reset_core1();
 			    system_reset();
 			}
