@@ -5,7 +5,7 @@
 
 //-----------------------------------------------------------------------------
 
-static file g_fFiles[MAX_FILES];
+static file    g_fFiles[MAX_FILES];
 static FRESULT fr;  /* Return value */
 static DIR     dj;  /* Directory object */
 static FILINFO fno; /* File information */

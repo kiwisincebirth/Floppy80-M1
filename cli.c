@@ -107,7 +107,7 @@ void ServiceCli(void)
 {
     uint64_t nTimeNow;
     char*    prompt = {"\nCMD>"};
-    int c;
+    int      c;
 
     if (!tud_cdc_connected())
     {

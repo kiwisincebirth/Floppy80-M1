@@ -7,7 +7,6 @@
 #include "pico/stdlib.h"
 
 #include "defines.h"
-#include "datetime.h"
 #include "file.h"
 #include "system.h"
 #include "crc.h"
@@ -1207,9 +1206,9 @@ void FdcProcessConfigEntry(char szLabel[], char* psz)
 void FdcLoadIni(void)
 {
 	file* f;
-	char  szLine[256];
+	char  szLine[64];
 	char  szSection[16];
-	char  szLabel[128];
+	char  szLabel[32];
 	char* psz;
 	int   nLen;
 
@@ -1235,7 +1234,7 @@ void FdcLoadIni(void)
 		return;
 	}
 	
-	nLen = FileReadLine(f, (BYTE*)szLine, 126);
+	nLen = FileReadLine(f, (BYTE*)szLine, sizeof(szLine)-2);
 	
 	while (nLen >= 0)
 	{
@@ -1244,7 +1243,7 @@ void FdcLoadIni(void)
 		if ((*psz != 0) && (*psz != ';')) // blank line or a comment line
 		{
 			StrToUpper(psz);
-			psz = CopyLabelName(psz, szLabel, sizeof(szLabel)-1);
+			psz = CopyLabelName(psz, szLabel, sizeof(szLabel)-2);
 			FdcProcessConfigEntry(szLabel, psz);
 		}
 
@@ -2053,7 +2052,7 @@ void FdcGenerateSectorCRC(int nSector, int nSectorSize)
 //-----------------------------------------------------------------------------
 void FdcUpdateDataAddressMark(int nSector, int nSectorSize)
 {
-	int  nDataOffset, i;
+	int nDataOffset, i;
 
 	// get offset of the 0xA1, 0xA1, 0xA1, 0xFB sequence that marks the start of sector data
 
@@ -2411,7 +2410,7 @@ void FdcServiceSendData(void)
 {
 	if (g_FDC.dwStateCounter > 0) // don't wait forever
 	{
-	--g_FDC.dwStateCounter;
+		--g_FDC.dwStateCounter;
 		return;
 	}
 
@@ -2424,6 +2423,7 @@ void FdcServiceSendData(void)
 void SetResponseLength(BufferType* bResponse)
 {
 	int i = strlen((char*)(bResponse->buf));
+
 	bResponse->cmd[0] = i & 0xFF;
 	bResponse->cmd[1] = (i >> 8) & 0xFF;
 }
@@ -2456,11 +2456,8 @@ void FdcProcessStatusRequest(byte print)
 	if (g_byBootConfigModified)
 	{
 		file* f;
-		char  szLine[256];
-		char  szSection[16];
-		char  szLabel[128];
 		char* psz;
-		int   nLen, nLeft, nRead;
+		int   nLen;
 
 		f = FileOpen(g_szBootConfig, FA_READ);
 		
@@ -2470,17 +2467,17 @@ void FdcProcessStatusRequest(byte print)
 		}
 		else
 		{
-			nLen = FileReadLine(f, (BYTE*)szLine, nRead);
+			nLen = FileReadLine(f, (BYTE*)szBuf, sizeof(szBuf)-2);
 			
 			while (nLen >= 0)
 			{
 				if (nLen > 2)
 				{
-					strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLine);
+					strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szBuf);
 					strcat_s((char*)(g_bFdcResponse.buf),  sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 				}
 
-				nLen = FileReadLine(f, (BYTE*)szLine, 126);
+				nLen = FileReadLine(f, (BYTE*)szBuf, sizeof(szBuf)-2);
 			}
 			
 			FileClose(f);
@@ -2520,7 +2517,7 @@ int FdcFileListCmp(const void * a, const void * b)
 void FdcProcessFindFirst(char* pszFilter)
 {
     FRESULT fr;  // Return value
-	int i;
+	int     i;
 	
 	g_nFindIndex = 0;
 	g_nFindCount = 0;
@@ -2646,8 +2643,6 @@ void FdcSaveBootCfg(char* pszIniFile)
 //-----------------------------------------------------------------------------
 void FdcServiceMountImage(void)
 {
-	static int nIndex;
-	static int nSize;
 	char* psz;
 	int   nDrive;
 
