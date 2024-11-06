@@ -3,6 +3,8 @@
 #include <ctype.h>
 #include <stdlib.h>
 
+#include "pico/multicore.h"
+
 #include "defines.h"
 #include "sd_core.h"
 #include "system.h"
@@ -13,6 +15,7 @@
 #include "f_util.h"
 #include "hw_config.h"
 #include "sd_card.h"
+#include "util.h"
 
 ////////////////////////////////////////////////////////////////////////////////////
 
@@ -125,7 +128,7 @@ BYTE sd_getfreespace(void)
 }
 
 ////////////////////////////////////////////////////////////////////////////////////
-void IdentifySdCard(void)
+void MountSdCard(void)
 {
 	FRESULT fr;
 	BYTE    nCD;
@@ -215,7 +218,7 @@ void TestSdCardInsertion(void)
 			
 			sd_byCardRemoved  = TRUE;
 			sd_wCardInitTries = 0;
-			IdentifySdCard();
+			MountSdCard();
 		}
 		else // card was removed
 		{
@@ -224,13 +227,8 @@ void TestSdCardInsertion(void)
 		if (sd_byCurrentCdState == 0)		// card is not present
 		{
 			sd_byCardInialized = FALSE;
-		}
-	}
-
-	if (sd_byCurrentWpState != sd_byPreviousWpState)
-	{
-		if ((sd_byCurrentCdState == 1) && (sd_byCurrentWpState == 1))	// card is write protected
-		{
+		    multicore_reset_core1();
+		    system_reset();
 		}
 	}
 
@@ -251,5 +249,5 @@ void SDHC_Init(void)
 	g_dwSdCardMaxPresenceCount = 10000;
 	g_dwSdCardPresenceCount    = 0;
 	
-	IdentifySdCard();
+	MountSdCard();
 }

@@ -18,7 +18,7 @@ unsigned char get_wp(void);
 
 BYTE IsSdCardInserted(void);
 BYTE IsSdCardWriteProtected(void);
-void IdentifySdCard(void);
+void MountSdCard(void);
 void TestSdCardInsertion(void);
 void SDHC_Init(void);
 
