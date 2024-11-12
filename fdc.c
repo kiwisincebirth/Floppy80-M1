@@ -14,7 +14,7 @@
 #include "sd_core.h"
 
 #define ENABLE_LOGGING 1
-#pragma GCC optimize ("Og")
+//#pragma GCC optimize ("O0")
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -162,9 +162,8 @@ DAM marker values:
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static char* g_pszVersion = {"0.0.5"};
+static char* g_pszVersion = {"0.0.6"};
 
-static FdcType       g_FDC;
 static FdcDriveType  g_dtDives[MAX_DRIVES];
 static TrackType     g_tdTrack;
 static SectorType    g_stSector;
@@ -195,6 +194,8 @@ static uint32_t g_dwIndexTime;
 
 //-----------------------------------------------------------------------------
 
+FdcType g_FDC;
+
 volatile BYTE    g_byIntrRequest;		// controls the INTRQ output pin.  Which simulates an open drain output that when set indicates the completion
 										// of any command and is reset when the computer reads or writes to/from the DR.
 										//
@@ -203,7 +204,7 @@ volatile BYTE    g_byIntrRequest;		// controls the INTRQ output pin.  Which simu
 										//
 										// when enabled via the corresponding bit of byNmiMaskReg the NMI output is the inverted state of byIntrReq
 
-volatile DWORD   g_dwRotationCount;
+volatile int32_t g_nRotationCount;
 volatile DWORD   g_dwMotorOnTimer;
 volatile uint8_t g_byBootConfigModified;
 
@@ -368,7 +369,10 @@ void __not_in_flash_func(FdcUpdateStatus)(void)
 			byStatus |= F_SEEKERR;
 		}
 		
-		byStatus |= F_HEADLOAD;
+		if (g_FDC.status.byHeadLoaded)
+		{
+			byStatus |= F_HEADLOAD;
+		}
 
 		// S6 (PROTECTED) default to 0
 		if (g_FDC.status.byProtected || (g_dtDives[nDrive].nDriveFormat == eHFE))
@@ -500,6 +504,10 @@ void __not_in_flash_func(FdcSetFlag)(byte flag)
 		case eDataRequest:
 			g_FDC.status.byDataRequest = 1;
 			break;
+
+		case eHeadLoaded:
+			g_FDC.status.byHeadLoaded = 1;
+			break;
 	}
 
 	FdcUpdateStatus();
@@ -548,6 +556,10 @@ void __not_in_flash_func(FdcClrFlag)(byte flag)
 
 		case eDataRequest:
 			g_FDC.status.byDataRequest = 0;
+			break;
+
+		case eHeadLoaded:
+			g_FDC.status.byHeadLoaded = 0;
 			break;
 	}
 
@@ -1285,13 +1297,12 @@ void FdcInit(void)
 	g_dwMotorOnTimer = 0;
 	g_dwRotationTime = 200000;	// 200ms
 	g_dwIndexTime    = 2800;	// 2.8ms
+	g_nRotationCount = 0;
 }
 
-//-----------------------------------------------------------------------------
+//-----------------------------------------------------------------------------	
 void __not_in_flash_func(FdcGenerateIntr)(void)
 {
-	g_FDC.byNmiStatusReg = 0x7F; // inverted state of all bits low except INTRQ
-
 	g_byIntrRequest   = 1;
 	g_byFdcIntrActive = true;
 	g_byEnableIntr    = true;
@@ -1342,6 +1353,15 @@ void FdcProcessRestoreCommand(void)
 	g_FDC.byTrack = 255;
 	g_FDC.byCommandType = 1;
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
+
+	if (g_FDC.byCommandReg & 0x08) // h == 1?
+	{
+		FdcSetFlag(eHeadLoaded);
+	}
+	else
+	{
+		FdcClrFlag(eHeadLoaded);
+	}
 
 	FdcReadTrack(nDrive, nSide, 0);
 
@@ -1394,6 +1414,16 @@ void FdcProcessSeekCommand(void)
 	int nSide = FdcGetSide(g_FDC.byDriveSel);
 
 	g_FDC.byCommandType = 1;
+
+	if (g_FDC.byCommandReg & 0x08) // h == 1?
+	{
+		FdcSetFlag(eHeadLoaded);
+	}
+	else
+	{
+		FdcClrFlag(eHeadLoaded);
+	}
+
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 	
 	if (nDrive != g_tdTrack.nDrive)
@@ -1426,7 +1456,7 @@ void FdcProcessSeekCommand(void)
 	g_FDC.byTrack = g_FDC.byData;
 	FdcClrFlag(eSeekError);
 	FdcSetFlag(eBusy);
-	g_FDC.dwStateTimer     = 0;
+	g_FDC.dwStateTimer = 0;
 	g_FDC.nProcessFunction = psSeek;
 }
 
@@ -1445,6 +1475,16 @@ void FdcProcessStepCommand(void)
 	int nSide = FdcGetSide(g_FDC.byDriveSel);
 
 	g_FDC.byCommandType = 1;
+
+	if (g_FDC.byCommandReg & 0x08) // h == 1?
+	{
+		FdcSetFlag(eHeadLoaded);
+	}
+	else
+	{
+		FdcClrFlag(eHeadLoaded);
+	}
+
 	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 
 	if ((g_FDC.byCurCommand & 0x04) != 0) // perform verification
@@ -1489,6 +1529,16 @@ void FdcProcessStepInCommand(void)
 	int  nSide = FdcGetSide(g_FDC.byDriveSel);
 
 	g_FDC.byCommandType = 1;
+
+	if (g_FDC.byCommandReg & 0x08) // h == 1?
+	{
+		FdcSetFlag(eHeadLoaded);
+	}
+	else
+	{
+		FdcClrFlag(eHeadLoaded);
+	}
+
 	g_FDC.nStepDir = 1;
 
 	if ((g_FDC.byCurCommand & 0x04) != 0) // perform verification
@@ -1542,6 +1592,16 @@ void FdcProcessStepOutCommand(void)
 	int  nSide = FdcGetSide(g_FDC.byDriveSel);
 
 	g_FDC.byCommandType = 1;
+
+	if (g_FDC.byCommandReg & 0x08) // h == 1?
+	{
+		FdcSetFlag(eHeadLoaded);
+	}
+	else
+	{
+		FdcClrFlag(eHeadLoaded);
+	}
+
 	g_FDC.nStepDir = -1;
 
 	if ((g_FDC.byCurCommand & 0x04) != 0) // perform verification
@@ -1597,8 +1657,7 @@ void FdcProcessReadSectorCommand(void)
 		return;
 	}		
 	
-	g_FDC.nReadStatusCount = 0;
-	g_FDC.dwStateTimer     = 0;
+	g_FDC.dwStateTimer = 0;
 
 	FdcClrFlag(eDataRequest);
 
@@ -1642,7 +1701,6 @@ void FdcProcessWriteSectorCommand(void)
 
 	g_FDC.byCommandType = 2;
 	FdcSetRecordType(0xFB);
-	g_FDC.nReadStatusCount = 0;
 
 	// read specified sector so that it can be modified
 	FdcReadSector(g_FDC.byDriveSel, nSide, g_FDC.byTrack, g_FDC.bySector);
@@ -1693,8 +1751,7 @@ void FdcProcessReadAddressCommand(void)
 	g_tdTrack.nReadSize  = 6;
 	g_tdTrack.nReadCount = 6;
 
-	g_FDC.nReadStatusCount = 0;
-	g_FDC.dwStateTimer     = 0;
+	g_FDC.dwStateTimer = 0;
 	FdcClrFlag(eDataRequest);
 
 	// number of byte to be transfered to the computer before
@@ -1784,7 +1841,6 @@ void FdcProcessWriteTrackCommand(void)
 void FdcProcessMount(void)
 {
 	g_FDC.byCommandType    = 2;
-	g_FDC.nReadStatusCount = 0;
 	FdcClrFlag(eDataRequest);
 	g_FDC.nServiceState    = 0;
 	g_FDC.nProcessFunction = psMountImage;
@@ -1799,7 +1855,6 @@ void FdcProcessMount(void)
 void FdcProcessOpenFile(void)
 {
 	g_FDC.byCommandType    = 2;
-	g_FDC.nReadStatusCount = 0;
 	FdcClrFlag(eDataRequest);
 	g_FDC.nServiceState    = 0;
 	g_FDC.nProcessFunction = psOpenFile;
@@ -1856,7 +1911,11 @@ void FdcProcessCommand(void)
 			break;
 
 		case 12: // Read Address							(Type 3 Command)
-			FdcProcessReadAddressCommand();
+			if (g_FDC.byCommandReg == 0xC4)
+			{
+				FdcProcessReadAddressCommand();
+			}
+
 			break;
 
 		case 13: // Force Interrupt							(Type 4 Command)
@@ -1864,11 +1923,19 @@ void FdcProcessCommand(void)
 			break;
 
 		case 14: // Read Track								(Type 3 Command)
-			FdcProcessReadTrackCommand();
+			if ((g_FDC.byCommandReg == 0xE4) || (g_FDC.byCommandReg == 0xE5))
+			{
+				FdcProcessReadTrackCommand();
+			}
+
 			break;
 
 		case 15: // Write Track								(Type 3 Command)
-			FdcProcessWriteTrackCommand();
+			if (g_FDC.byCommandReg == 0xF4)
+			{
+				FdcProcessWriteTrackCommand();
+			}
+
 			break;
 
 		default:
@@ -1883,8 +1950,7 @@ void FdcServiceReadSector(void)
 	switch (g_FDC.nServiceState)
 	{
 		case 0:
-			g_FDC.nReadStatusCount = 0;
-			g_FDC.dwStateTimer     = 0;
+			g_FDC.dwStateTimer = 0;
 			++g_FDC.nServiceState;
 			break;
 
@@ -1906,7 +1972,6 @@ void FdcServiceReadSector(void)
 				break;
 			}
 
-			g_FDC.nReadStatusCount = 0;
 			++g_FDC.nServiceState;
 			FdcClrFlag(eBusy);
 			FdcGenerateIntr();
@@ -1921,8 +1986,7 @@ void FdcServiceReadTrack(void)
 	switch (g_FDC.nServiceState)
 	{
 		case 0:
-			g_FDC.nReadStatusCount = 0;
-			g_FDC.dwStateTimer     = 0;
+			g_FDC.dwStateTimer = 0;
 			++g_FDC.nServiceState;
 			break;
 
@@ -1944,7 +2008,6 @@ void FdcServiceReadTrack(void)
 				break;
 			}
 
-			g_FDC.nReadStatusCount = 0;
 			++g_FDC.nServiceState;
 			FdcClrFlag(eBusy);
 			FdcGenerateDRQ();
@@ -2079,7 +2142,7 @@ void FdcServiceWriteSector(void)
 	switch (g_FDC.nServiceState)
 	{
 		case 0:
-			if ((g_FDC.nReadStatusCount < 25) && (g_FDC.dwStateTimer < 1000))
+			if (g_FDC.dwStateTimer < 1000)
 			{
 				break;
 			}
@@ -2332,7 +2395,7 @@ void FdcServiceWriteTrack(void)
 	switch (g_FDC.nServiceState)
 	{
 		case 0:
-			if ((g_FDC.nReadStatusCount < 25) && (g_FDC.dwStateTimer < 1000))
+			if (g_FDC.dwStateTimer < 1000)
 			{
 				break;
 			}
@@ -2385,20 +2448,6 @@ void FdcServiceSeek(void)
 
 	FdcClrFlag(eBusy);
 	FdcGenerateIntr();
-	g_FDC.nProcessFunction = psIdle;
-}
-
-//-----------------------------------------------------------------------------
-// primary data transfer is handled in fdc_isr()
-void FdcServiceSendData(void)
-{
-	if (g_FDC.dwStateTimer < 1000) // don't wait forever
-	{
-		return;
-	}
-
-	FdcClrFlag(eDataRequest);
-	FdcClrFlag(eBusy);
 	g_FDC.nProcessFunction = psIdle;
 }
 
@@ -2715,15 +2764,15 @@ void FdcUpdateCounters(void)
 		g_byMotorWasOn = 1;
 
 		g_dwMotorOnTimer  = CountDown(g_dwMotorOnTimer, nDiff);
-		g_dwRotationCount = CountUp(g_dwRotationCount, nDiff);
+		g_nRotationCount += nDiff;
 
 		// (g_dwTimerFrequency / 5) = count to make one full rotation of the diskette (200 ms at 300 RPM)
-		if (g_dwRotationCount >= g_dwRotationTime)
+		if (g_nRotationCount >= g_dwRotationTime)
 		{
-			g_dwRotationCount -= g_dwRotationTime;
+			g_nRotationCount -= g_dwRotationTime;
 		}
 
-		if (g_dwRotationCount < g_dwIndexTime)
+		if (g_nRotationCount < g_dwIndexTime)
 		{
 			FdcSetFlag(eIndex);
 		 	gpio_put(LED_PIN, 1);
@@ -2771,11 +2820,11 @@ void FdcServiceStateMachine(void)
 	{
 		case psIdle:
 			break;
-		
+
 		case psReadSector:
 			FdcServiceReadSector();
 			break;
-		
+
 		case psReadTrack:
 			FdcServiceReadTrack();
 			break;
@@ -2783,13 +2832,9 @@ void FdcServiceStateMachine(void)
 		case psWriteSector:
 			FdcServiceWriteSector();
 			break;
-		
+
 		case psWriteTrack:
 			FdcServiceWriteTrack();
-			break;
-		
-		case psSendData:
-			FdcServiceSendData();
 			break;
 
 		case psSeek:
@@ -2852,7 +2897,7 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd)
 	{
 		sprintf(psz, "CMD: %02X WSEC: Multiple Record", byCmd);
 	}
-	else if ((byCmd & 0xF0) == 0xC0) // 1100xxxx
+	else if (byCmd == 0xC4) // 11000100
 	{
 		sprintf(psz, "CMD: %02X Read Address", byCmd);
 	}
@@ -2860,17 +2905,17 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd)
 	{
 		sprintf(psz, "CMD: %02X Force Interrupt", byCmd);
 	}
-	else if ((byCmd & 0xF0) == 0xE0) // 1110xxxx
+	else if ((byCmd & 0xFE) == 0xE4) // 1110010x
 	{
 		sprintf(psz, "CMD: %02X RTRK: %02X", byCmd, g_FDC.byTrack);
 	}
-	else if ((byCmd & 0xF0) == 0xF0) // 1110xxxx
+	else if (byCmd == 0xF4) // 11110100
 	{
 		sprintf(psz, "CMD: %02X WTRK: %02X", byCmd, g_FDC.byTrack);
 	}
 	else
 	{
-		sprintf(psz, "CMD: %02X Unknownn", byCmd);
+		sprintf(psz, "CMD: %02X Unknown", byCmd);
 	}
 }
 #endif
@@ -2882,11 +2927,9 @@ void __not_in_flash_func(fdc_command_write)(byte byData)
 
 	g_FDC.byCommandReg   = byData;
 	g_FDC.byCommandType  = FdcGetCommandType(byData);
-	g_FDC.byNmiStatusReg = 0xFF;
 
 	if (g_byIntrRequest)
 	{
-		g_FDC.byNmiStatusReg = 0xFF; // inverted state of all bits low except INTRQ
 		g_byIntrRequest = 0;
 		g_byFdcIntrActive = false;
 	}
@@ -2963,6 +3006,139 @@ void __not_in_flash_func(fdc_write)(word addr, byte byData)
 }
 
 //-----------------------------------------------------------------------------
+void fdc_get_status_string(char* buf, int nMaxLen, BYTE byStatus)
+{
+	int nDrive;
+
+	nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
+
+	buf[0] = '|';
+	buf[1] = 0;
+
+	if ((nDrive < 0) || (g_dtDives[nDrive].f == NULL))
+	{
+		strcat_s(buf, sizeof(buf)-1, "F_NOTREADY|F_HEADLOAD");
+	}
+	else if ((g_FDC.byCommandType == 1) || // Restore, Seek, Step, Step In, Step Out
+           (g_FDC.byCommandType == 4))   // Force Interrupt
+	{
+		// S0 (BUSY)
+		if (byStatus & F_BUSY)
+		{
+			strcat_s(buf, nMaxLen, "F_BUSY|");
+		}
+		
+		// S1 (INDEX) default to 0
+		if (byStatus & F_INDEX)
+		{
+			strcat_s(buf, nMaxLen, "F_INDEX|");
+		}
+
+		// S2 (TRACK 0) default to 0
+		if (byStatus & F_TRACK0)
+		{
+			strcat_s(buf, nMaxLen, "F_TRACK0|");
+		}
+
+		// S3 (CRC ERROR) default to 0
+		if (byStatus & F_CRCERR)
+		{
+			strcat_s(buf, nMaxLen, "F_CRCERR|");
+		}
+
+		// S4 (SEEK ERROR) default to 0
+		if (byStatus & F_SEEKERR)
+		{
+			strcat_s(buf, nMaxLen, "F_SEEKERR|");
+		}
+		
+		if (byStatus & F_HEADLOAD)
+		{
+			strcat_s(buf, nMaxLen, "F_HEADLOAD|");
+		}
+
+		// S6 (PROTECTED) default to 0
+		if (byStatus & F_PROTECTED)
+		{
+			strcat_s(buf, nMaxLen, "F_PROTECTED|");
+		}
+		
+		// S7 (NOT READY) default to 0
+		if (byStatus & F_NOTREADY)
+		{
+			strcat_s(buf, nMaxLen, "F_NOTREADY|");
+		}
+	}
+	else if ((g_FDC.byCommandType == 2) ||	// Read Sector, Write Sector
+			 (g_FDC.byCommandType == 3))	// Read Address, Read Track, Write Track
+	{
+		// // S0 (BUSY)
+		// if (g_FDC.status.byBusy)
+		// {
+		// 	byStatus |= F_BUSY;
+		// }
+	
+		// // S1 (DATA REQUEST)     default to 0
+		// if (g_FDC.status.byDataRequest)
+		// {
+		// 	byStatus |= F_DRQ;
+		// }
+
+		// // S2 (LOST DATA)        default to 0
+		// if (g_FDC.status.byDataLost)
+		// {
+		// 	byStatus |= F_LOSTDATA;
+		// }
+		
+		// // S3 (CRC ERROR)        default to 0
+		// if (g_FDC.status.byCrcError)
+		// {
+		// 	byStatus |= F_BADDATA;
+		// }
+		
+		// // S4 (RECORD NOT FOUND) default to 0
+		// if (g_FDC.status.byNotFound)
+		// {
+		// 	byStatus |= F_NOTFOUND;
+		// }
+	
+		// // S5 (RECORD TYPE) default to 0
+		// // S6 (PROTECTED) default to 0
+		// switch (g_FDC.status.byRecordType)
+		// {
+		// 	case 0xFB:
+		// 		byStatus &= ~F_DELETED;
+		// 		byStatus &= ~F_PROTECT;
+		// 		break;
+
+		// 	case 0xFA:
+		// 		byStatus |= F_DELETED;
+		// 		byStatus &= ~F_PROTECT;
+		// 		break;
+
+		// 	case 0xF9:
+		// 		byStatus &= ~F_DELETED;
+		// 		byStatus |= F_PROTECT;
+		// 		break;
+
+		// 	case 0xF8:
+		// 		byStatus |= F_DELETED;
+		// 		byStatus |= F_PROTECT;
+		// 		break;
+		// }
+
+		// // S7 (NOT READY) default to 0
+		// if (g_FDC.status.byNotReady)
+		// {
+		// 	byStatus |= F_NOTREADY;
+		// }
+	}
+	else // Force Interrupt
+	{
+	}
+}
+
+//-----------------------------------------------------------------------------
 byte __not_in_flash_func(fdc_read)(word wAddr)
 {
 	WORD wReg;
@@ -2981,16 +3157,15 @@ byte __not_in_flash_func(fdc_read)(word wAddr)
 #ifdef ENABLE_LOGGING
 			if (byPrevStatus != byData)
 			{
-				printf("RD STATUS %02X\r\n", byData);
+				char buf[64];
+				fdc_get_status_string(buf, sizeof(buf)-1, byData);
+				printf("RD STATUS %02X CMD TYPE %d (%s)\r\n", byData, g_FDC.byCommandType, buf);
 				byPrevStatus = byData;
 			}
 #endif
 
-			++g_FDC.nReadStatusCount;
-
 			if (g_byIntrRequest)
 			{
-				g_FDC.byNmiStatusReg = 0xFF; // inverted state of all bits low except INTRQ
 				g_byIntrRequest = 0;
 				g_byFdcIntrActive = false;
 			}

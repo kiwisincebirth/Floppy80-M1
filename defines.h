@@ -3,7 +3,7 @@
 #define _H_DEFINES_
 
 //#pragma GCC optimize ("O0")
-#pragma GCC optimize ("Og")
+#pragma GCC optimize ("O3")
 
 #include <stdio.h>
 
@@ -183,6 +183,7 @@ extern volatile byte    g_byRtcIntrActive;
 extern volatile byte    g_byFdcIntrActive;
 extern volatile byte    g_byResetActive;
 extern volatile byte    g_byEnableIntr;
+extern volatile int32_t g_nRotationCount;
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 

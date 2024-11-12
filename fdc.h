@@ -16,29 +16,30 @@ extern "C" {
 #define NUM_BLOCKS 32
 #define MAX_TRACK_SIZE (BLOCK_SIZE*NUM_BLOCKS)
 
-                           /* Common status bits:               */
-#define F_BUSY     0x01    /* Controller is executing a command */
-#define F_READONLY 0x40    /* The disk is write-protected       */
-#define F_NOTREADY 0x80    /* The drive is not ready            */
+                             /* Common status bits:               */
+#define F_BUSY      0x01    /* Controller is executing a command */
+#define F_READONLY  0x40    /* The disk is write-protected       */
+#define F_NOTREADY  0x80    /* The drive is not ready            */
 
-                           /* Type-1 command status:            */
-#define F_INDEX    0x02    /* Index mark detected               */
-#define F_TRACK0   0x04    /* Head positioned at track #0       */
-#define F_CRCERR   0x08    /* CRC error in ID field             */
-#define F_SEEKERR  0x10    /* Seek error, track not verified    */
-#define F_HEADLOAD 0x20    /* Head loaded                       */
-#define F_NOTREADY 0x80    /* Drive not ready, drive missing    */
+                             /* Type-1 command status:            */
+#define F_INDEX     0x02    /* Index mark detected               */
+#define F_TRACK0    0x04    /* Head positioned at track #0       */
+#define F_CRCERR    0x08    /* CRC error in ID field             */
+#define F_SEEKERR   0x10    /* Seek error, track not verified    */
+#define F_HEADLOAD  0x20    /* Head loaded                       */
+#define F_PROTECTED 0x40    /* write protected                   */
+#define F_NOTREADY  0x80    /* Drive not ready, drive missing    */
 
-                           /* Type-2 and Type-3 command status: */
-#define F_DRQ      0x02    /* Data request pending              */
-#define F_LOSTDATA 0x04    /* Data has been lost (missed DRQ)   */
-#define F_ERRCODE  0x18    /* Error code bits:                  */
-#define F_BADDATA  0x08    /* 1 = bad data CRC                  */
-#define F_NOTFOUND 0x10    /* 2 = sector not found              */
-#define F_BADID    0x18    /* 3 = bad ID field CRC              */
-#define F_DELETED  0x20    /* Deleted data mark (when reading)  */
-#define F_PROTECT  0x40
-#define F_WRFAULT  0x20    /* Write fault (when writing)        */
+                             /* Type-2 and Type-3 command status: */
+#define F_DRQ       0x02    /* Data request pending              */
+#define F_LOSTDATA  0x04    /* Data has been lost (missed DRQ)   */
+#define F_ERRCODE   0x18    /* Error code bits:                  */
+#define F_BADDATA   0x08    /* 1 = bad data CRC                  */
+#define F_NOTFOUND  0x10    /* 2 = sector not found              */
+#define F_BADID     0x18    /* 3 = bad ID field CRC              */
+#define F_DELETED   0x20    /* Deleted data mark (when reading)  */
+#define F_PROTECT   0x40
+#define F_WRFAULT   0x20    /* Write fault (when writing)        */
 
 /* global HFE defines ========================================================*/
 
@@ -104,7 +105,6 @@ enum {
 	psWriteSector,
 	psWriteTrack,
 	psSeek,
-	psSendData,
 	psMountImage,
 	psOpenFile,
 	psWriteFile,
@@ -166,6 +166,7 @@ enum {
 	eNotReady,
 	eRecordType,
 	eDataRequest,
+	eHeadLoaded,
 };
 
 typedef struct {
@@ -174,6 +175,7 @@ typedef struct {
 	BYTE byDataLost;
 	BYTE byCrcError;
 	BYTE bySeekError;
+	BYTE byHeadLoaded;
 	BYTE byNotFound;
 	BYTE byProtected;
 	BYTE byNotReady;
@@ -321,8 +323,6 @@ typedef struct {
 	int   nServiceState;
 	DWORD dwStateTimer;
 
-	int   nReadStatusCount;
-
 	BYTE  bySdCardPresent;
 	
 	int   nDataRegReadCount;
@@ -356,7 +356,6 @@ typedef struct {
 /* ==============================================================*/
 
 extern volatile BYTE  g_byIntrRequest;
-extern volatile DWORD g_dwRotationCount;
 
 /* function prototypes ==========================================*/
 
