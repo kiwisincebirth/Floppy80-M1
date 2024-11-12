@@ -49,7 +49,6 @@ void InitVars(void)
 	g_byRtcIntrActive = false;
 
 	g_byIntrRequest = 0;
-	g_dwRotationCount = 0;
 
 	g_byResetActive = true;
 	g_byEnableIntr  = false;

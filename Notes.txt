@@ -1,50 +1,58 @@
 Boots
 --------------------
-+ Lifeboat CPM 1.4.1
-+ FMG CPM 1.5
 + Double DOS 4.2.4
++ FMG CPM 1.5
 + LDOS 5.3.1
++ Lifeboat CPM 1.4.1
++ MultiDOS 4.01
++ NEWDOS 3.0
++ NEWDOS 80 V2.0
 + TRSDOS 2.3
 + UltraDOS 4.2.0
 + VTDOS 3.0.0
 + VTDOS 4.0.1
-+ NEWDOS 3.0
 
 Format Drive
 --------------------
-+ Lifeboat CPM 1.4.1
-+ FMG CPM 1.5
 - Double DOS 4.2.4
++ FMG CPM 1.5
 + LDOS 5.3.1
-- TRSDOS 2.3 (motor speed too fast, likely an issue with added wait states)
++ Lifeboat CPM 1.4.1
+- MultiDOS 4.01  (CRC error)
+- NEWDOS 3.0     (Motor speed too fast, likely an issue with added wait states)
+- NEWDOS 80 V2.0 (MOTOR SLOW)
+- TRSDOS 2.3     (motor speed too fast, likely an issue with added wait states)
 - UltraDOS 4.2.0
 - VTDOS 3.0.0
 + VTDOS 4.0.1
-- NEWDOS 3.0 (Motor speed too fast, likely an issue with added wait states)
 
 Copy File
 --------------------
-+ Lifeboat CPM 1.4.1
-+ FMG CPM 1.5
 - Double DOS 4.2.4
++ FMG CPM 1.5
 + LDOS 5.3.1
++ Lifeboat CPM 1.4.1
+- MultiDOS 4.01
+- NEWDOS 3.0
++ NEWDOS 80 V2.0
 + TRSDOS 2.3
 + UltraDOS 4.2.0
 + VTDOS 3.0.0
 + VTDOS 4.0.1
-- NEWDOS 3.0
 
 FDC/CMD support
 --------------------
-+ Lifeboat CPM 1.4.1
-+ FMG CPM 1.5
 + Double DOS 4.2.4
++ FMG CPM 1.5
 + LDOS 5.3.1
++ Lifeboat CPM 1.4.1
++ MultiDOS 4.01
++ NEWDOS 3.0
++ NEWDOS 80 V2.0
 + TRSDOS 2.3
 + UltraDOS 4.2.0
 + VTDOS 3.0.0
 + VTDOS 4.0.1
-+ NEWDOS 3.0
 
 + Positive
 - Negative
