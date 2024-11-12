@@ -13,8 +13,8 @@
 #include "fdc.h"
 #include "sd_core.h"
 
-//#define ENABLE_LOGGING 1
-//#pragma GCC optimize ("O0")
+// #define ENABLE_LOGGING 1
+// #pragma GCC optimize ("Og")
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -164,6 +164,7 @@ DAM marker values:
 
 static char* g_pszVersion = {"0.0.6"};
 
+static FdcType       g_FDC;
 static FdcDriveType  g_dtDives[MAX_DRIVES];
 static TrackType     g_tdTrack;
 static SectorType    g_stSector;
@@ -193,8 +194,6 @@ static uint32_t g_dwRotationTime;
 static uint32_t g_dwIndexTime;
 
 //-----------------------------------------------------------------------------
-
-FdcType g_FDC;
 
 volatile BYTE    g_byIntrRequest;		// controls the INTRQ output pin.  Which simulates an open drain output that when set indicates the completion
 										// of any command and is reset when the computer reads or writes to/from the DR.
