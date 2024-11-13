@@ -373,11 +373,17 @@ void FdcServiceStateMachine(void);
 void FdcProcessConfigEntry(char szLabel[], char* psz);
 void FdcCloseAllFiles(void);
 
-void fdc_write(uint16_t addr, byte byData);
-byte fdc_read(uint16_t wAddr);
+void fdc_write_cmd(byte byData);
+void fdc_write_track(byte byData);
+void fdc_write_sector(byte byData);
+void fdc_write_data(byte byData);
+
+byte fdc_read_status(void);
+byte fdc_read_track(void);
+byte fdc_read_sector(void);
+byte fdc_read_data(void);
+
 void fdc_write_drive_select(byte byData);
-byte fdc_read_nmi(void);
-void fdc_write_nmi(byte byData);
 void fdc_process_command_request(byte by);
 
 byte fdc_get_response_byte(word addr);

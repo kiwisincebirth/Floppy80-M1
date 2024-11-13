@@ -101,7 +101,7 @@ void InitGPIO(void)
 
     gpio_init(LED_PIN);
     gpio_set_dir(LED_PIN, GPIO_OUT);
-    gpio_set_slew_rate(LED_PIN, GPIO_SLEW_RATE_FAST);
+    gpio_set_slew_rate(LED_PIN, GPIO_SLEW_RATE_SLOW);
     gpio_set_drive_strength(LED_PIN, GPIO_DRIVE_STRENGTH_2MA);
     gpio_put(LED_PIN, 1); // LED off
 

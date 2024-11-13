@@ -8,8 +8,8 @@
 #include "defines.h"
 #include "fdc.h"
 
-//#define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop(); __nop(); __nop();
-#define NopDelay() __nop(); __nop(); __nop();
+#define NopDelay() __nop(); __nop(); __nop(); __nop(); __nop(); __nop(); __nop(); __nop();
+//#define NopDelay() __nop(); __nop(); __nop(); __nop();
 
 static byte by_memory[0x8000];
 
@@ -19,7 +19,7 @@ volatile byte g_byResetActive;
 volatile byte g_byEnableIntr;
 
 //-----------------------------------------------------------------------------
-void __not_in_flash_func(ServiceMemoryRead)(byte data)
+void __not_in_flash_func(FinishReadOperation)(byte data)
 {
     clr_gpio(DIR_PIN);      // B to A direction
     set_bus_as_output();    // make data pins (D0-D7) outputs
@@ -38,8 +38,18 @@ void __not_in_flash_func(ServiceMemoryRead)(byte data)
 }
 
 //-----------------------------------------------------------------------------
-void __not_in_flash_func(ServiceFdcResponseOperation)(word addr, byte data)
+void __not_in_flash_func(ServiceFdcResponseOperation)(word addr)
 {
+    byte data;
+    
+    if (get_gpio(RD_PIN) != 0) // assume to be a WR
+    {
+        clr_gpio(DATAB_OE_PIN);
+        NopDelay();
+        data = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
+    }
+
     // wait for RD or WR to go active or MREQ to go inactive
     while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
 
@@ -47,13 +57,23 @@ void __not_in_flash_func(ServiceFdcResponseOperation)(word addr, byte data)
     {
         addr -= FDC_RESPONSE_ADDR_START;
         data = fdc_get_response_byte(addr);
-        ServiceMemoryRead(data);
+        FinishReadOperation(data);
     }
 }
 
 //-----------------------------------------------------------------------------
-void __not_in_flash_func(ServiceFdcRequestOperation)(word addr, byte data)
+void __not_in_flash_func(ServiceFdcRequestOperation)(word addr)
 {
+    byte data;
+    
+    if (get_gpio(RD_PIN) != 0) // assume to be a WR
+    {
+        clr_gpio(DATAB_OE_PIN);
+        NopDelay();
+        data = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
+    }
+
     // wait for RD or WR to go active or MREQ to go inactive
     while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
 
@@ -67,120 +87,186 @@ void __not_in_flash_func(ServiceFdcRequestOperation)(word addr, byte data)
 }
 
 //-----------------------------------------------------------------------------
- // WR = 300ns after WR goes low;
- //      completes 260ns before MREQ goes inactive;
- // RD = 340ns from MREQ going low to entering here;
- //      770ns before MREQ goes inactive;
- void __not_in_flash_func(ServiceHighMemoryOperation)(word addr, byte data)
+void __not_in_flash_func(ServiceHighMemoryOperation)(word addr)
 {
+    byte data;
+    byte* pby = by_memory+addr-0x8000;
+    
+    set_gpio(WAIT_PIN);
+
+    if (get_gpio(RD_PIN) != 0) // assume to be a WR
+    {
+        clr_gpio(DATAB_OE_PIN);
+        NopDelay();
+        data = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
+    }
+
     // wait for RD or WR to go active or MREQ to go inactive
     while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
 
     if (get_gpio(RD_PIN) == 0)
     {
-        ServiceMemoryRead(by_memory[addr-0x8000]);
+        FinishReadOperation(*pby);
     }
     else if (get_gpio(WR_PIN) == 0)
     {
-        by_memory[addr-0x8000] = data;
+        *pby = data;
     }
 }
 
 //-----------------------------------------------------------------------------
-// 90ns from MREQ going low to entering here;
-// Status register (0x37EC) +270ns to get the status register to place on the bus;
-// Track register  (0x37ED) +270ns to get the status register to place on the bus;
-// Data register   (0x37EF) +300ns to get the data register to place on the bus;
-void __not_in_flash_func(ServiceFdcReadOperation)(word addr)
+void __not_in_flash_func(ServiceFdcDriveSelectOperation)(void)
+{
+    byte data;
+    
+    if (get_gpio(RD_PIN) != 0) // assume to be a WR
+    {
+        clr_gpio(DATAB_OE_PIN);
+        NopDelay();
+        data = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
+    }
+
+    // wait for RD or WR to go active or MREQ to go inactive
+    while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
+
+    if (get_gpio(RD_PIN) == 0)
+    {
+        byte data = 0x3F;
+
+        if (g_byIntrRequest)
+        {
+            data |= 0x40;
+        }
+
+        if (g_byRtcIntrActive)
+        {
+            data |= 0x80;
+            g_byRtcIntrActive = false;
+
+            if (!g_byFdcIntrActive)
+            {
+                // deactivate intr
+                clr_gpio(INT_PIN);
+            }
+        }
+
+        FinishReadOperation(data);
+    }
+    else if (get_gpio(WR_PIN) == 0)
+    {
+        fdc_write_drive_select(data);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(ServiceFdcCmdStatusOperation)(void)
+{
+    byte data;
+    
+    if (get_gpio(RD_PIN) != 0) // assume to be a WR
+    {
+        set_gpio(WAIT_PIN);
+        clr_gpio(DATAB_OE_PIN);
+        NopDelay();
+        data = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
+    }
+
+    // wait for RD or WR to go active or MREQ to go inactive
+    while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
+
+    if (get_gpio(RD_PIN) == 0)
+    {
+        if (!g_byRtcIntrActive)
+        {
+            clr_gpio(INT_PIN);
+        }
+
+        FinishReadOperation(fdc_read_status());
+    }
+    else if (get_gpio(WR_PIN) == 0)
+    {
+        fdc_write_cmd(data);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(ServiceFdcTrackOperation)(void)
+{
+    byte data;
+    
+    if (get_gpio(RD_PIN) != 0) // assume to be a WR
+    {
+        clr_gpio(DATAB_OE_PIN);
+        NopDelay();
+        data = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
+    }
+
+    // wait for RD or WR to go active or MREQ to go inactive
+    while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
+
+    if (get_gpio(RD_PIN) == 0)
+    {
+        FinishReadOperation(fdc_read_track());
+    }
+    else if (get_gpio(WR_PIN) == 0)
+    {
+        fdc_write_track(data);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(ServiceFdcSectorOperation)(void)
+{
+    byte data;
+    
+    if (get_gpio(RD_PIN) != 0) // assume to be a WR
+    {
+        clr_gpio(DATAB_OE_PIN);
+        NopDelay();
+        data = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
+    }
+
+    // wait for RD or WR to go active or MREQ to go inactive
+    while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
+
+    if (get_gpio(RD_PIN) == 0)
+    {
+        FinishReadOperation(fdc_read_sector());
+    }
+    else if (get_gpio(WR_PIN) == 0)
+    {
+        fdc_write_sector(data);
+    }
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(ServiceFdcDataOperation)(void)
 {
     byte data;
 
-    switch (addr)
+    if (get_gpio(RD_PIN) != 0) // assume to be a WR
     {
-        case 0x37E0: // RTC (90ns to complete)
-        case 0x37E1:
-        case 0x37E2:
-        case 0x37E3:
-            data = 0x3F;
-
-            if (g_byIntrRequest)
-            {
-                data |= 0x40;
-            }
-
-            if (g_byRtcIntrActive)
-            {
-                data |= 0x80;
-                g_byRtcIntrActive = false;
-
-                if (!g_byFdcIntrActive)
-                {
-                    // deactivate intr
-                    clr_gpio(INT_PIN);
-                }
-            }
-
-            break;
-
-        case 0x37EC: // Status register
-            if (!g_byRtcIntrActive)
-            {
-                clr_gpio(INT_PIN);
-            }
-
-        case 0x37ED: // Track register
-        case 0x37EE: // Sector register
-        case 0x37EF: // Data register
-            data = fdc_read(addr);
-            break;
-
-        default:
-            return;
+        clr_gpio(DATAB_OE_PIN);
+        NopDelay();
+        data = get_gpio_data_byte();
+        set_gpio(DATAB_OE_PIN);
     }
 
-    ServiceMemoryRead(data);
-}
-
-//-----------------------------------------------------------------------------
-// 230ns from WR going low to entering this routine
-// Drive select    (0x37E1) +170ns to save drive selection
-// Cmd register    (0x37EC) +320ns to save cmd
-// Track register  (0x37ED) +270ns to save track
-// Sector register (0x37EE) +260ns to save sector
-// Data register   (0x37EF) +270ns to save data
-void __not_in_flash_func(ServiceFdcWriteOperation)(word addr, byte data)
-{
-    switch (addr)
-    {
-        case 0x37E0:
-        case 0x37E1:
-        case 0x37E2:
-        case 0x37E3: // drive select
-            fdc_write_drive_select(data);
-            break;
-
-        case 0x37EC: // Cmd register
-        case 0x37ED: // Track register
-        case 0x37EE: // Sector register
-        case 0x37EF: // Data register
-            fdc_write(addr, data);
-            break;
-    }
-}
-
-//-----------------------------------------------------------------------------
-void __not_in_flash_func(ServiceFdcMemoryOperation)(word addr, byte data)
-{
     // wait for RD or WR to go active or MREQ to go inactive
     while ((get_gpio(RD_PIN) != 0) && (get_gpio(WR_PIN) != 0) && (get_gpio(MREQ_PIN) == 0));
 
     if (get_gpio(RD_PIN) == 0)
     {
-        ServiceFdcReadOperation(addr);
+        FinishReadOperation(fdc_read_data());
     }
     else if (get_gpio(WR_PIN) == 0)
     {
-        ServiceFdcWriteOperation(addr, data);
+        fdc_write_data(data);
     }
 }
 
@@ -242,32 +328,45 @@ void __not_in_flash_func(service_memory)(void)
         addr.b[1] = get_gpio_data_byte();
         set_gpio(ADDRH_OE_PIN);
 
-        if (get_gpio(RD_PIN) != 0)
-        {
-            clr_gpio(DATAB_OE_PIN);
-            NopDelay();
-            data = get_gpio_data_byte();
-            set_gpio(DATAB_OE_PIN);
-        }
-
         if (addr.w >= 0x8000)
         {
-            ServiceHighMemoryOperation(addr.w, data); // WR = 300ns after WR goes low;  completes 260ns before MREQ goes inactive
+            ServiceHighMemoryOperation(addr.w);
         }
         else if ((addr.w >= 0x37E0) && (addr.w <= 0x37EF))
         {
-            set_gpio(WAIT_PIN);
-            ServiceFdcMemoryOperation(addr.w, data);
+            switch (addr.w)
+            {
+                case 0x37E0:
+                case 0x37E1:
+                case 0x37E2:
+                case 0x37E3:
+                    ServiceFdcDriveSelectOperation();
+                    break;
+
+                case 0x37EC:
+                    ServiceFdcCmdStatusOperation();
+                    break;
+
+                case 0x37ED:
+                    ServiceFdcTrackOperation();
+                    break;
+
+                case 0x37EE:
+                    ServiceFdcSectorOperation();
+                    break;
+
+                case 0x37EF:
+                    ServiceFdcDataOperation();
+                    break;
+            }
         }
         else if ((addr.w >= FDC_REQUEST_ADDR_START) && (addr.w <= FDC_REQUEST_ADDR_STOP))
         {
-            set_gpio(WAIT_PIN);
-            ServiceFdcRequestOperation(addr.w, data);
+            ServiceFdcRequestOperation(addr.w);
         }
         else if ((addr.w >= FDC_RESPONSE_ADDR_START) && (addr.w <= FDC_RESPONSE_ADDR_STOP))
         {
-            set_gpio(WAIT_PIN);
-            ServiceFdcResponseOperation(addr.w, data);
+            ServiceFdcResponseOperation(addr.w);
         }
 
     	// end = systick_hw->cvr;

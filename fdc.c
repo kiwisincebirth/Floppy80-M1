@@ -1601,6 +1601,7 @@ void FdcProcessReadSectorCommand(void)
 	g_FDC.dwStateTimer = 0;
 
 	FdcClrFlag(eDataRequest);
+	FdcSetFlag(eHeadLoaded);
 
 	if (g_FDC.byCurCommand & 0x10) // read multiple
 	{
@@ -1647,6 +1648,8 @@ void FdcProcessWriteSectorCommand(void)
 	FdcReadSector(g_FDC.byDriveSel, nSide, g_FDC.byTrack, g_FDC.bySector);
 
 	FdcClrFlag(eDataRequest);
+	FdcSetFlag(eHeadLoaded);
+
 	g_stSector.nSector     = g_FDC.bySector;
 	g_stSector.nSectorSize = g_dtDives[nDrive].dmk.nSectorSize;
 	g_tdTrack.nFileOffset  = FdcGetTrackOffset(nDrive, nSide, g_FDC.byTrack);
@@ -1739,6 +1742,7 @@ void FdcProcessReadTrackCommand(void)
 	int nDrive = FdcGetDriveIndex(g_FDC.byDriveSel);
 
 	g_FDC.byCommandType = 3;
+	FdcSetFlag(eHeadLoaded);
 
 	g_tdTrack.nTrack = 255;
 
@@ -1764,6 +1768,7 @@ void FdcProcessWriteTrackCommand(void)
 	int nSide = FdcGetSide(g_FDC.byDriveSel);
 
 	g_FDC.byCommandType = 3;
+	FdcSetFlag(eHeadLoaded);
 	
 	memset(g_tdTrack.byTrackData+0x80, 0, sizeof(g_tdTrack.byTrackData)-0x80);
 	
@@ -2860,74 +2865,76 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd)
 }
 #endif
 
+
 //-----------------------------------------------------------------------------
-void __not_in_flash_func(fdc_write)(word addr, byte byData)
+void __not_in_flash_func(fdc_write_cmd)(byte byData)
 {
 #ifdef ENABLE_LOGGING
     char szBuf[64];
 #endif
 
-	switch (addr)
+	g_FDC.byCommandReg  = byData;
+	g_FDC.byCommandType = byCommandTypes[byData>>4];
+
+	if (g_byIntrRequest)
 	{
-		case 0x37EC: // command register
-			g_FDC.byCommandReg  = byData;
-			g_FDC.byCommandType = byCommandTypes[byData>>4];
-
-			if (g_byIntrRequest)
-			{
-				g_byIntrRequest = 0;
-				g_byFdcIntrActive = false;
-			}
-
-			g_FDC.status.byBusy = 1;
-			g_FDC.byStatus     |= F_BUSY;
-			g_FDC.byCommandReceived = 1;
-
-#ifdef ENABLE_LOGGING
-			GetCommandText(szBuf, sizeof(szBuf), byData);
-			puts(szBuf);
-#endif
-			break;
-
-		case 0x37ED: // track register
-			g_FDC.byTrack = byData;
-
-#ifdef ENABLE_LOGGING
-		    printf("WR TRACK %02X\r\n", byData);
-#endif
-			break;
-
-		case 0x37EE: // sector register
-			g_FDC.bySector = byData;
-
-#ifdef ENABLE_LOGGING
-		    printf("WR SECTOR %02X\r\n", byData);
-#endif
-			break;
-
-		case 0x37EF: // data register
-			g_FDC.byData = byData;
-			g_FDC.status.byDataRequest = 0;
-			g_FDC.byStatus &= ~F_DRQ;
-
-			if (g_tdTrack.nWriteCount > 0)
-			{
-				*g_tdTrack.pbyWritePtr = byData;
-				++g_tdTrack.pbyWritePtr;
-				--g_tdTrack.nWriteCount;
-
-				if (g_tdTrack.nWriteCount > 0)
-				{
-					g_FDC.status.byDataRequest = 1;
-					g_FDC.byStatus |= F_DRQ;
-				}
-			}
-
-#ifdef ENABLE_LOGGING
-		    printf("WR DATA %02X\r\n", byData);
-#endif
-			break;
+		g_byIntrRequest = 0;
+		g_byFdcIntrActive = false;
 	}
+
+	g_FDC.status.byBusy = 1;
+	g_FDC.byStatus     |= F_BUSY;
+	g_FDC.byCommandReceived = 1;
+
+#ifdef ENABLE_LOGGING
+	GetCommandText(szBuf, sizeof(szBuf), byData);
+	puts(szBuf);
+#endif
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(fdc_write_track)(byte byData)
+{
+	g_FDC.byTrack = byData;
+
+#ifdef ENABLE_LOGGING
+    printf("WR TRACK %02X\r\n", byData);
+#endif
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(fdc_write_sector)(byte byData)
+{
+	g_FDC.bySector = byData;
+
+#ifdef ENABLE_LOGGING
+    printf("WR SECTOR %02X\r\n", byData);
+#endif
+}
+
+//-----------------------------------------------------------------------------
+void __not_in_flash_func(fdc_write_data)(byte byData)
+{
+	g_FDC.byData = byData;
+	g_FDC.status.byDataRequest = 0;
+	g_FDC.byStatus &= ~F_DRQ;
+
+	if (g_tdTrack.nWriteCount > 0)
+	{
+		*g_tdTrack.pbyWritePtr = byData;
+		++g_tdTrack.pbyWritePtr;
+		--g_tdTrack.nWriteCount;
+
+		if (g_tdTrack.nWriteCount > 0)
+		{
+			g_FDC.status.byDataRequest = 1;
+			g_FDC.byStatus |= F_DRQ;
+		}
+	}
+
+#ifdef ENABLE_LOGGING
+	printf("WR DATA %02X\r\n", byData);
+#endif
 }
 
 //-----------------------------------------------------------------------------
@@ -3063,95 +3070,99 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 	}
 }
 
+
 //-----------------------------------------------------------------------------
-byte __not_in_flash_func(fdc_read)(word wAddr)
+byte __not_in_flash_func(fdc_read_status)(void)
 {
 #ifdef ENABLE_LOGGING
 	static BYTE byPrevStatus = 0;
 #endif
 
-	switch (wAddr)
+#ifdef ENABLE_LOGGING
+	if (byPrevStatus != g_FDC.byStatus)
 	{
-		case 0x37EC:
-#ifdef ENABLE_LOGGING
-			if (byPrevStatus != byData)
-			{
-				char buf[64];
-				fdc_get_status_string(buf, sizeof(buf)-1, g_FDC.byStatus);
-				printf("RD STATUS %02X CMD TYPE %d (%s)\r\n", g_FDC.byStatus, g_FDC.byCommandType, buf);
-				byPrevStatus = byData;
-			}
+		char buf[64];
+		fdc_get_status_string(buf, sizeof(buf)-1, g_FDC.byStatus);
+		printf("RD STATUS %02X CMD TYPE %d (%s)\r\n", g_FDC.byStatus, g_FDC.byCommandType, buf);
+		byPrevStatus = g_FDC.byStatus;
+	}
 #endif
-			if (g_byIntrRequest)
-			{
-				g_byIntrRequest = 0;
-				g_byFdcIntrActive = false;
-			}
-
-			return g_FDC.byStatus;
-
-		case 0x37ED:
-#ifdef ENABLE_LOGGING
-    		printf("RD TRACK %02X\r\n", g_FDC.byTrack);
-#endif
-			return g_FDC.byTrack;
-
-		case 0x37EE:
-#ifdef ENABLE_LOGGING
-			printf("RD SECTOR %02X\r\n", g_FDC.bySector);
-#endif
-			return g_FDC.bySector;
-
-		case 0x37EF:
-			if (g_tdTrack.nReadCount > 0)
-			{
-				g_FDC.byData = *g_tdTrack.pbyReadPtr;
-				
-				g_FDC.status.byDataRequest = 0;
-				g_FDC.byStatus &= ~F_DRQ;
-
-				g_tdTrack.pbyReadPtr += g_FDC.nDataSize;
-				--g_tdTrack.nReadCount;
-
-				if (g_tdTrack.nReadCount == 0)
-				{
-					if (g_FDC.byMultipleRecords)
-					{
-						++g_FDC.bySector;
-#ifdef ENABLE_LOGGING
-		  				printf("RD NEXT SECTOR %02X\r\n", g_FDC.bySector);
-#endif
-						g_FDC.byCommandReg  = 0x98;
-						g_FDC.byCommandType = byCommandTypes[9];
-
-						if (g_byIntrRequest)
-						{
-							g_byIntrRequest = 0;
-							g_byFdcIntrActive = false;
-						}
-
-						g_FDC.byCommandReceived = 1;
-					}
-				}
-				else
-				{
-					g_FDC.status.byDataRequest = 1;
-					g_FDC.byStatus |= F_DRQ;
-				}
-			}
-			else
-			{
-				g_FDC.status.byDataRequest = 0;
-				g_FDC.byStatus |= F_DRQ;
-			}
-
-#ifdef ENABLE_LOGGING
-		  	printf("RD DATA %02X\r\n", g_FDC.byData);
-#endif
-			return g_FDC.byData;
+	if (g_byIntrRequest)
+	{
+		g_byIntrRequest = 0;
+		g_byFdcIntrActive = false;
 	}
 
-	return 0;
+	return g_FDC.byStatus;
+}
+
+//-----------------------------------------------------------------------------
+byte __not_in_flash_func(fdc_read_track)(void)
+{
+#ifdef ENABLE_LOGGING
+	printf("RD TRACK %02X\r\n", g_FDC.byTrack);
+#endif
+	return g_FDC.byTrack;
+}
+
+//-----------------------------------------------------------------------------
+byte __not_in_flash_func(fdc_read_sector)(void)
+{
+#ifdef ENABLE_LOGGING
+	printf("RD SECTOR %02X\r\n", g_FDC.bySector);
+#endif
+	return g_FDC.bySector;
+}
+
+//-----------------------------------------------------------------------------
+byte __not_in_flash_func(fdc_read_data)(void)
+{
+	if (g_tdTrack.nReadCount > 0)
+	{
+		g_FDC.byData = *g_tdTrack.pbyReadPtr;
+		
+		g_FDC.status.byDataRequest = 0;
+		g_FDC.byStatus &= ~F_DRQ;
+
+		g_tdTrack.pbyReadPtr += g_FDC.nDataSize;
+		--g_tdTrack.nReadCount;
+
+		if (g_tdTrack.nReadCount == 0)
+		{
+			if (g_FDC.byMultipleRecords)
+			{
+				++g_FDC.bySector;
+#ifdef ENABLE_LOGGING
+				printf("RD NEXT SECTOR %02X\r\n", g_FDC.bySector);
+#endif
+				g_FDC.byCommandReg  = 0x98;
+				g_FDC.byCommandType = byCommandTypes[9];
+
+				if (g_byIntrRequest)
+				{
+					g_byIntrRequest = 0;
+					g_byFdcIntrActive = false;
+				}
+
+				g_FDC.byCommandReceived = 1;
+			}
+		}
+		else
+		{
+			g_FDC.status.byDataRequest = 1;
+			g_FDC.byStatus |= F_DRQ;
+		}
+	}
+	else
+	{
+		g_FDC.status.byDataRequest = 0;
+		g_FDC.byStatus |= F_DRQ;
+	}
+
+#ifdef ENABLE_LOGGING
+	printf("RD DATA %02X\r\n", g_FDC.byData);
+#endif
+	return g_FDC.byData;
 }
 
 //-----------------------------------------------------------------------------
