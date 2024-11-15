@@ -2662,6 +2662,13 @@ void FdcFormatDrive(void)
 	char buf[64];
 	int  drive = atoi(g_bFdcRequest.buf);
 
+	if (!isdigit((char)g_bFdcRequest.buf[0]))
+	{
+		strcpy((char*)(g_bFdcResponse.buf), "Drive number not specified\n");
+		SetResponseLength(&g_bFdcResponse);
+		return;
+	}
+
 	if ((drive < 0) || (drive > (sizeof(g_dtDives)/sizeof(g_dtDives[0]))))
 	{
 		sprintf(buf, "Invalid drive number %d\n", drive);
@@ -2917,7 +2924,6 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd)
 }
 #endif
 
-
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(fdc_write_cmd)(byte byData)
 {
@@ -3131,7 +3137,6 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 	{
 	}
 }
-
 
 //-----------------------------------------------------------------------------
 byte __not_in_flash_func(fdc_read_status)(void)
