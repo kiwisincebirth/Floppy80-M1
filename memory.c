@@ -287,8 +287,20 @@ void __not_in_flash_func(service_memory)(void)
         set_bus_as_input();     // reset data pins (D0-D7) inputs
         set_gpio(DIR_PIN);      // A to B direction
 
-        // wait for MREQ to go active
-        while (get_gpio(MREQ_PIN));
+        // read low address byte, address is put on bus before MREQ goes low
+        // so we can read it while waiting for MREQ to go active (low)
+        // saves time after MREQ goes low
+        clr_gpio(ADDRL_OE_PIN);
+        NopDelay();
+        addr.b[0] = get_gpio_data_byte();
+
+        // wait for MREQ to go active, reading low address byte while waiting
+        while (get_gpio(MREQ_PIN))
+        {
+            addr.b[0] = get_gpio_data_byte();
+        }
+
+        set_gpio(ADDRL_OE_PIN);
 
 #ifdef PICO_RP2040
         set_gpio(WAIT_PIN);
@@ -302,12 +314,6 @@ void __not_in_flash_func(service_memory)(void)
         	set_gpio(INT_PIN); // activate intr
         }
 
-        // read low address byte
-        clr_gpio(ADDRL_OE_PIN);
-        NopDelay();
-        addr.b[0] = get_gpio_data_byte();
-        set_gpio(ADDRL_OE_PIN);
-
         // read high address byte
         clr_gpio(ADDRH_OE_PIN);
         NopDelay();
@@ -316,7 +322,7 @@ void __not_in_flash_func(service_memory)(void)
 
         if (addr.w >= 0x8000)
         {
-            ServiceHighMemoryOperation(addr.w); // 230ns to execute
+            ServiceHighMemoryOperation(addr.w);
         }
         else if ((addr.w >= 0x37E0) && (addr.w <= 0x37EF))
         {
