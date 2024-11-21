@@ -328,6 +328,11 @@ typedef struct {
 	int   nTransferSize;
 	int   nTrasferIndex;
 	int   nDataSize;
+
+	BYTE  byDoublerEnable;
+	BYTE  byDoublerSide;
+	BYTE  byDoublerDensity;
+	BYTE  byDoublerPrecomp;
 } FdcType;
 
 #define FDC_REQUEST_SIZE 0x200
