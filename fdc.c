@@ -13,8 +13,8 @@
 #include "fdc.h"
 #include "sd_core.h"
 
-// #define ENABLE_LOGGING 1
-// #pragma GCC optimize ("Og")
+#define ENABLE_LOGGING 1
+#pragma GCC optimize ("Og")
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -167,7 +167,7 @@ DAM marker values:
 
 	Value		Function
 	--------------------------------
-    40-5F       Select side 0
+    40-5F       Select side 0 (is not routed to drive, thus has no effect)
     60-7F       Select side 1
     80-9F       Set double-density mode
     A0-BF       Set single-density mode
@@ -177,7 +177,7 @@ DAM marker values:
 
 ////////////////////////////////////////////////////////////////////////////////////
 
-static char* g_pszVersion = {"0.0.9"};
+static char* g_pszVersion = {"0.1.0"};
 
 static FdcType       g_FDC;
 static FdcDriveType  g_dtDives[MAX_DRIVES];
@@ -368,7 +368,7 @@ void __not_in_flash_func(FdcUpdateStatus)(void)
 		// S3 (CRC ERROR)        default to 0
 		if (g_FDC.status.byCrcError)
 		{
-			byStatus |= F_BADDATA;
+			byStatus |= F_CRCERR;
 		}
 		
 		// S4 (RECORD NOT FOUND) default to 0
@@ -560,7 +560,7 @@ WORD FdcGetIDAM(int nSector)
 }
 
 //-----------------------------------------------------------------------------
-// determines the index of the Data Address Mark for the specified locical sector.
+// determines the index of the Data Address Mark for the specified logical sector.
 //
 // returns the index of the 0xFE byte in the sector byte sequence 0xA1, 0xA1, 0xA1, 0xFE
 // in the g_tdTrack.byTrackData[] address for the specified sector.
@@ -753,6 +753,7 @@ void FdcReadDmkTrack(int nDrive, int nSide, int nTrack)
 	FileSeek(g_dtDives[nDrive].f, nTrackOffset);
 	FileRead(g_dtDives[nDrive].f, g_tdTrack.byTrackData, g_dtDives[nDrive].dmk.wTrackLength);
 
+//	g_dtDives[nDrive].dmk.byDensity = eSD;
 	g_tdTrack.byDensity  = g_dtDives[nDrive].dmk.byDensity;
 	g_tdTrack.nDrive     = nDrive;
 	g_tdTrack.nSide      = nSide;
@@ -1744,7 +1745,6 @@ void FdcProcessReadSectorCommand(void)
 	g_FDC.nServiceState     = 0;
 	g_FDC.nProcessFunction  = psReadSector;
 	
-
 	// Note: computer now reads the data register for each of the sector data bytes
 	//       once the last data byte is transfered status bit-5 is set if the
 	//       Data Address Mark corresponds to a Deleted Data Mark.
@@ -2547,8 +2547,6 @@ void FdcServiceWriteTrack(void)
 				break;
 			}
 
-			// FdcGenerateIntr();
-			// FdcClrFlag(eBusy);
 			g_FDC.nServiceState    = 0;
 			g_FDC.nProcessFunction = psIdle;
 			break;
@@ -3361,9 +3359,9 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 		}
 		
 		// S3 (CRC ERROR)        default to 0
-		if (byStatus & F_BADDATA)
+		if (byStatus & F_CRCERR)
 		{
-			strcat_s(buf, nMaxLen, "F_BADDATA|");
+			strcat_s(buf, nMaxLen, "F_CRCERR|");
 		}
 		
 		// S4 (RECORD NOT FOUND) default to 0

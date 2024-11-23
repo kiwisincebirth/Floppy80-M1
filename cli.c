@@ -57,13 +57,13 @@ void ListFiles(char* pszFilter)
 			{
                 ++nCol;
 
-    			if (nCol < 4)
+    			if (nCol < 5)
 				{
-                    printf("%s\t", fno.fname);
+                    printf("%30s", fno.fname);
                 }
                 else
                 {
-    				puts(fno.fname);
+                    printf("%30s\r\n", fno.fname);
                     nCol = 0;
                 }
 			}
