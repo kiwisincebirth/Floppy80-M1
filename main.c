@@ -39,7 +39,7 @@
 ///////////////////////////////////////////////////////////////////////////////
 // GPIO NET        IN   OUT
 //-----------------------------------------------------------------------------
-// 0	DEBUG_TXT		 * (Serial transmit for debug messages)
+// 0	INT         	 * (drives a transistor to pull the Z80 Interrupt line low)
 // 1    WAIT             * (drives a transistor to pull the Z80 Wait line low)
 // 2    CLK_SCLK         * (SD-Card)
 // 3    CMD_MOSI         * (SD-Card)
@@ -185,7 +185,7 @@ int main()
     SDHC_Init();
     FileSystemInit();
     FdcInit();
-    InitCli();
+    // InitCli();
 
     multicore_launch_core1(service_memory);
 
@@ -199,6 +199,6 @@ int main()
     {
         UpdateCounters();
         FdcServiceStateMachine();
-        ServiceCli();
+        // ServiceCli();
     }
 }
