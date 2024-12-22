@@ -41,3 +41,10 @@ Copy File
 --------------------
 - Double DOS 4.2.4  "COPY FILENAME/EXT:0 TO FILENAME/EXT:2"
 - NEWDOS 3.0        "COPY FILENAME/EXT:0 TO FILENAME/EXT:2"
+
+Power Up Sequence
+--------------------
+- Start with the keyboard powered off and
+  USB removed from the Floppy80
+- Connect USB to the Floppy80
+- Power on the keyboard
