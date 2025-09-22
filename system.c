@@ -36,22 +36,16 @@ static uint32_t g_nRtcIntrCount;
 //////////////////////////////////////////////////////////////////////////////////////////////////
 void InitVars(void)
 {
-	g_dwResetTime    = 1000;	// 1ms
-
-	g_nTimeNow     = time_us_64();
-	g_nPrevTime    = g_nTimeNow;
-
-	g_nRtcIntrCount = 0;
-
-	g_byMonitorReset = FALSE;
-	g_dwResetCount   = 0;
-
+	g_dwResetTime     = 1000;	// 1ms
+	g_nTimeNow        = time_us_64();
+	g_nPrevTime       = g_nTimeNow;
+	g_nRtcIntrCount   = 0;
+	g_byMonitorReset  = FALSE;
+	g_dwResetCount    = 0;
 	g_byRtcIntrActive = false;
-
-	g_byIntrRequest = 0;
-
-	g_byResetActive = true;
-	g_byEnableIntr  = false;
+	g_byIntrRequest   = 0;
+	g_byResetActive   = true;
+	g_byEnableIntr    = false;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -329,9 +323,6 @@ void UpdateCounters(void)
 			FileCloseAll();
 			FileSystemInit();
 			FdcInit();
-		}
-		else if (g_dwResetCount >= 1000000) // 1s
-		{
 			multicore_reset_core1();
 			system_reset();
 		}
