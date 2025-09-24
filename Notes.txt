@@ -5,7 +5,7 @@ Double DOS 4.2.4      Yes      No      Yes    Yes
 FMG CPM 1.5           Yes      Yes     Yes    Yes
 LDOS 5.3.1            Yes      Yes     Yes    Yes
 Lifeboat CPM 1.4.1    Yes      Yes     Yes    Yes
-MultiDOS 4.01         Yes      No      Yes    Yes
+MultiDOS 4.01         Yes      Yes     Yes    Yes
 NEWDOS 3.0            Yes      Yes     Yes    Yes
 NEWDOS 80 V2.0        Yes      No      Yes    Yes
 TRSDOS 2.3            Yes      Yes     Yes    Yes
@@ -16,7 +16,7 @@ VTDOS 4.0.1           Yes      Yes     Yes    Yes
 --------------------
 - Double DOS 4.2.4
   FORMAT
-  - does not work
+  - do not have a format program
   COPY
   - "COPY FILENAME/EXT:0 TO FILENAME/EXT:2"
 
@@ -46,7 +46,7 @@ VTDOS 4.0.1           Yes      Yes     Yes    Yes
 
 - MultiDOS 4.01
   FORMAT
-  - does not work
+  - works as long as the disk double code in firmware is disabled
 
 - NEWDOS 3.0
   FORMAT

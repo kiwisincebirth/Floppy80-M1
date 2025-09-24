@@ -2391,15 +2391,7 @@ void FdcProcessTrackData1771(TrackType* ptdTrack)
 				break;
 
 			case 0xF7:
-				if (ptdTrack->byDensity == eDD)
-				{
-					wCRC16 = Calculate_CRC_CCITT(pbyCrcStart-2, (int)(pbySrc-pbyCrcStart+2), 1);
-				}
-				else
-				{
-					wCRC16 = Calculate_CRC_CCITT(pbyCrcStart, (int)(pbySrc-pbyCrcStart), 1);
-				}
-
+				wCRC16 = Calculate_CRC_CCITT(pbyCrcStart, (int)(pbySrc-pbyCrcStart), 1);
 				*pbyDst = wCRC16 >> 8;
 				++pbyDst;
 				++i;
@@ -2408,20 +2400,14 @@ void FdcProcessTrackData1771(TrackType* ptdTrack)
 
 			case 0xFA:
 			case 0xFB:
-				if (ptdTrack->byDensity == eSD) // single density
-				{
-					pbyCrcStart = pbySrc;
-				}
-
+				// single density only
+				pbyCrcStart = pbySrc;
 				break;
 
 			case 0xFE:
-				if (ptdTrack->byDensity == eSD) // single density
-				{
-					pbyCrcStart = pbySrc;
-					ptdTrack->nSide = *(pbySrc+2);
-				}
-
+				// single density only
+				pbyCrcStart = pbySrc;
+				ptdTrack->nSide = *(pbySrc+2);
 				break;
 		}
 		
@@ -3275,6 +3261,7 @@ void __not_in_flash_func(fdc_write_sector)(byte byData)
 {
 	g_FDC.bySector = byData;
 
+#ifdef ENABLE_DOUBLER
 	if (byData >= 0xE0)
 	{
 		g_FDC.byDoublerPrecomp = 1;
@@ -3301,6 +3288,7 @@ void __not_in_flash_func(fdc_write_sector)(byte byData)
 	{
 		g_FDC.byDoublerSide = 0;
 	}
+#endif
 
 #ifdef ENABLE_LOGGING
 	fdc_log[log_head].type = write_sector;
