@@ -228,7 +228,7 @@ void TestSdCardInsertion(void)
 		{
 			sd_byCardInialized = FALSE;
 		    multicore_reset_core1();
-		    system_reset();
+			reset_system();
 		}
 	}
 
