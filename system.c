@@ -10,6 +10,8 @@
 #include "pico/multicore.h"
 #include "hardware/clocks.h"
 #include "hardware/structs/systick.h"
+#include "hardware/resets.h"
+#include "hardware/watchdog.h"
 
 #include "sd_core.h"
 #include "util.h"
@@ -33,7 +35,15 @@ static uint64_t g_nPrevTime;
 
 static uint32_t g_nRtcIntrCount;
 
-//////////////////////////////////////////////////////////////////////////////////////////////////
+///////////////////////////////////////////////////////////////////////////////////////////////////
+void __not_in_flash_func(reset_system)(void)
+{
+    watchdog_enable(10, 0);
+    watchdog_reboot(0, SRAM_END, 0);
+	while(1);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////
 void InitVars(void)
 {
 	g_dwResetTime     = 1000;	// 1ms
@@ -324,7 +334,7 @@ void UpdateCounters(void)
 			FileSystemInit();
 			FdcInit();
 			multicore_reset_core1();
-			system_reset();
+			reset_system();
 		}
 	}
 	else

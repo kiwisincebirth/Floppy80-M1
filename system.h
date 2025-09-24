@@ -17,6 +17,8 @@
 // function definitions
 //-----------------------------------------------------------------------------
 
+void reset_system(void);
+
 void OpenLogFile(void);
 void CloseLogFile(void);
 void WriteLogFile(char* psz);
