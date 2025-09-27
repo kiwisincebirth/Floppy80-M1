@@ -2400,6 +2400,8 @@ void FdcProcessTrackData1771(TrackType* ptdTrack)
 
 			case 0xFA:
 			case 0xFB:
+			case 0xFC:
+			case 0xFD:
 				// single density only
 				pbyCrcStart = pbySrc;
 				break;
