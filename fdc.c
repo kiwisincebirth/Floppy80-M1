@@ -3461,7 +3461,7 @@ byte __not_in_flash_func(fdc_read_data)(void)
 	else
 	{
 		g_FDC.status.byDataRequest = 0;
-		g_FDC.byStatus |= F_DRQ;
+		g_FDC.byStatus &= ~F_DRQ;
 	}
 
 #ifdef ENABLE_LOGGING
