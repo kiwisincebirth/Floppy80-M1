@@ -2116,7 +2116,8 @@ void FdcProcessCommand(void)
 			break;
 
 		case 15: // Write Track								(Type 3 Command)
-			if (g_FDC.byCommandReg == 0xF4)
+			if ((g_FDC.byCommandReg == 0xF4) ||
+				(g_FDC.byCommandReg == 0xF0))
 			{
 				FdcProcessWriteTrackCommand();
 			}
