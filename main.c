@@ -192,7 +192,8 @@ int main()
     // wait for reset to be released
     while (g_byResetActive)
     {
-        tight_loop_contents();
+        // tight_loop_contents();
+        ServiceCli();
     }
 
     while (true)
