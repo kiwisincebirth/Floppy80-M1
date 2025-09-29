@@ -33,7 +33,8 @@ VTDOS 4.0.1           Yes      Yes     Yes    Yes
 
 - Double DOS 4.2.4
   FORMAT
-  - do not have a format program
+  - DOUBLE FORMAT :2
+    DOUBLE BACKUP :0 TO :2
   COPY
   - "COPY FILENAME/EXT:0 TO FILENAME/EXT:2"
 
