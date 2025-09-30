@@ -13,6 +13,9 @@ extern FdcDriveType g_dtDives[MAX_DRIVES];
 
 static uint8_t  g_byRwIndex = 0;
 static char     g_szRwBuf[256];
+static int      g_nDriveSel = -1;
+static int      g_nCommand = -1;
+static int      g_nCommandType = -1;
 
 //----------------------------------------------------------------------------
 void PurgeRwBuffer(void)
@@ -36,69 +39,98 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd, BYTE op1, BYTE op2)
 {
 	*psz = 0;
 
-	if ((byCmd & 0xF0) == 0)         // 0000xxxx
+	if (byCmd == 0xFE)
+	{
+		sprintf_s(psz, nMaxLen, "CMD: %02X PERCOM DOUBLER FM", byCmd);
+	}
+	else if (byCmd == 0xFF)
+	{
+		sprintf_s(psz, nMaxLen, "CMD: %02X PERCOM DOUBLER MFM", byCmd);
+	}
+	else if ((byCmd & 0xF0) == 0)         // 0000xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Restore", byCmd);
+		g_nCommandType = 1;
 	}
 	else if ((byCmd & 0xF0) == 0x10) // 0001xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X SEEK %02X, From %02X", byCmd, op1, op2);
+		g_nCommandType = 1;
 	}
 	else if ((byCmd & 0xF0) == 0x20) // 0010xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Step, Do Not Update Track Register", byCmd);
+		g_nCommandType = 1;
 	}
 	else if ((byCmd & 0xF0) == 0x30) // 0011xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Step, Update Track Register", byCmd);
+		g_nCommandType = 1;
 	}
 	else if ((byCmd & 0xF0) == 0x40) // 0100xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Step In, Do Not Update Track Register", byCmd);
+		g_nCommandType = 1;
 	}
 	else if ((byCmd & 0xF0) == 0x50) // 0101xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Step In, Update Track Register", byCmd);
+		g_nCommandType = 1;
 	}
 	else if ((byCmd & 0xF0) == 0x60) // 0110xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Step Out, Do Not Update Track Register", byCmd);
+		g_nCommandType = 1;
 	}
 	else if ((byCmd & 0xF0) == 0x70) // 0111xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Step Out, Update Track Register", byCmd);
+		g_nCommandType = 1;
 	}
 	else if ((byCmd & 0xF0) == 0x80) // 1000xxxx
 	{
-		sprintf_s(psz, nMaxLen, "CMD: %02X TRK: %02X RSEC: %02X", byCmd, op1, op2);
+		sprintf_s(psz, nMaxLen, "CMD: %02X DRV: %02X TRK: %02X RSEC: %02X", byCmd, FdcGetDriveIndex(g_nDriveSel), op1, op2);
+		g_nCommandType = 2;
 	}
 	else if ((byCmd & 0xF0) == 0x90) // 1001xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X RSEC: Multiple Record", byCmd);
+		g_nCommandType = 2;
 	}
 	else if ((byCmd & 0xF0) == 0xA0) // 1010xxxx
 	{
-		sprintf_s(psz, nMaxLen, "CMD: %02X TRK: %02X WSEC: %02X ", byCmd, op1, op2);
+		sprintf_s(psz, nMaxLen, "CMD: %02X DRV: %02X TRK: %02X WSEC: %02X ", byCmd, FdcGetDriveIndex(g_nDriveSel), op1, op2);
+		g_nCommandType = 2;
 	}
 	else if ((byCmd & 0xF0) == 0xB0) // 1011xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X WSEC: Multiple Record", byCmd);
+		g_nCommandType = 2;
 	}
 	else if (byCmd == 0xC4) // 11000100
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Read Address", byCmd);
+		g_nCommandType = 3;
 	}
 	else if ((byCmd & 0xF0) == 0xD0) // 1101xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Force Interrupt", byCmd);
+		g_nCommandType = 4;
 	}
 	else if ((byCmd & 0xFE) == 0xE4) // 1110010x
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X RTRK: %02X", byCmd, op1);
+		g_nCommandType = 3;
+	}
+	else if (byCmd == 0xF0) // 11110000
+	{
+		sprintf_s(psz, nMaxLen, "CMD: %02X DSEL: %02X WTRK: %02X", byCmd, op1, op2);
+		g_nCommandType = 3;
 	}
 	else if (byCmd == 0xF4) // 11110100
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X DSEL: %02X WTRK: %02X", byCmd, op1, op2);
+		g_nCommandType = 3;
 	}
 	else
 	{
@@ -110,11 +142,9 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd, BYTE op1, BYTE op2)
 extern int __not_in_flash_func(FdcGetDriveIndex)(int nDriveSel);
 
 //-----------------------------------------------------------------------------
-void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byStatus, BYTE byCommandType, BYTE byDriveSel)
+void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byStatus)
 {
-	int nDrive;
-
-	nDrive = FdcGetDriveIndex(byDriveSel);
+	int nDrive = FdcGetDriveIndex(g_nDriveSel);
 
 	buf[0] = '|';
 	buf[1] = 0;
@@ -123,8 +153,8 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 	{
 		strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|F_HEADLOAD");
 	}
-	else if ((byCommandType == 1) || // Restore, Seek, Step, Step In, Step Out
-             (byCommandType == 4))   // Force Interrupt
+	else if ((g_nCommandType == 1) || // Restore, Seek, Step, Step In, Step Out
+             (g_nCommandType == 4))   // Force Interrupt
 	{
 		// S0 (BUSY)
 		if (byStatus & F_BUSY)
@@ -173,8 +203,8 @@ void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byS
 			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
 		}
 	}
-	else if ((byCommandType == 2) ||	// Read Sector, Write Sector
-			 (byCommandType == 3))	// Read Address, Read Track, Write Track
+	else if ((g_nCommandType == 2) ||	// Read Sector, Write Sector
+			 (g_nCommandType == 3))	// Read Address, Read Track, Write Track
 	{
 		// S0 (BUSY)
 		if (byStatus & F_BUSY)
@@ -244,7 +274,7 @@ void ServiceFdcLog(void)
     switch (fdc_log[log_tail].type)
     {
         case write_drive_select:
-            if (fdc_log[log_tail].op1 != fdc_log[log_tail].val)
+            if (g_nDriveSel != fdc_log[log_tail].val)
             {
                 char buf[64];
 
@@ -256,8 +286,11 @@ void ServiceFdcLog(void)
                 #else
                     puts(buf);
                 #endif
+
+				g_nDriveSel = fdc_log[log_tail].val;
             }
-            break;
+
+			break;
 
         case write_data:
             if (g_byRwIndex == 0)
@@ -286,7 +319,8 @@ void ServiceFdcLog(void)
                 strcat_s(g_szRwBuf, sizeof(g_szRwBuf)-1, t);
                 ++g_byRwIndex;
             }
-            break;
+
+			break;
 
         case write_sector:
         	PurgeRwBuffer();
@@ -315,6 +349,8 @@ void ServiceFdcLog(void)
 
         case write_cmd:
         	PurgeRwBuffer();
+
+			g_nCommand = fdc_log[log_tail].val;
 
             GetCommandText(buf, sizeof(buf), fdc_log[log_tail].val, fdc_log[log_tail].op1, fdc_log[log_tail].op2);
 
@@ -387,8 +423,8 @@ void ServiceFdcLog(void)
 
                 PurgeRwBuffer();
 
-                fdc_get_status_string(buf, sizeof(buf)-1, fdc_log[log_tail].val, fdc_log[log_tail].op1, fdc_log[log_tail].op2);
-                sprintf_s(buf2, sizeof(buf2)-1, "RD STATUS %02X CMD TYPE %d (%s)", fdc_log[log_tail].val, fdc_log[log_head].op1, buf);
+                fdc_get_status_string(buf, sizeof(buf)-1, fdc_log[log_tail].val);
+                sprintf_s(buf2, sizeof(buf2)-1, "RD STATUS %02X CMD TYPE %d (%s)", fdc_log[log_tail].val, g_nCommandType, buf);
 
                 #ifdef MFC
                     strcat_s(buf2, sizeof(buf2)-1, "\r\n");
