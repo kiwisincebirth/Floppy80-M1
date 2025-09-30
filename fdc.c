@@ -2397,12 +2397,14 @@ void FdcProcessTrackData1771(TrackType* ptdTrack)
 		switch (*pbySrc)
 		{
 			case 0xF5:
-				pbyCrcStart = pbyDst;
+				pbyCrcStart = pbySrc;
 				*pbyDst = 0xA1;
+				*pbySrc = 0xA1;
 				break;
 			
 			case 0xF6:
 				*pbyDst = 0xC2;
+				*pbySrc = 0xC2;
 				break;
 
 			case 0xF7:
@@ -3469,8 +3471,6 @@ byte __not_in_flash_func(fdc_read_status)(void)
 #ifdef ENABLE_LOGGING
 	fdc_log[log_head].type = read_status;
 	fdc_log[log_head].val = g_FDC.byStatus;
-	fdc_log[log_head].op1 = g_FDC.byCommandType;
-	fdc_log[log_head].op2 = g_FDC.byDriveSel;
 	++log_head;
 	log_head = log_head % LOG_SIZE;
 #endif
