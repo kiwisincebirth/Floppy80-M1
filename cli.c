@@ -161,7 +161,7 @@ void DumpSector(int nDrive, int nTrack, int nSector)
         if ((i % 16) == 0)
         {
             printf("\r\n");
-            sleep_ms(5);
+            while (tud_cdc_write_available() < 56);
         }
 
         pby += nDataSize;

@@ -273,6 +273,11 @@ void ServiceFdcLog(void)
         return;
     }
 
+    if (tud_cdc_write_available() < 56)
+	{
+		return;
+	}
+
     switch (fdc_log[log_tail].type)
     {
         case write_drive_select:
