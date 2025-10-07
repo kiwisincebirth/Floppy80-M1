@@ -1,8 +1,10 @@
 #include <stdio.h>
 #include <string.h>
+#include <ctype.h>
+#include <stdlib.h>
+
 #include "tusb.h"
 #include "stdio.h"
-
 #include "defines.h"
 #include "system.h"
 #include "file.h"
@@ -28,15 +30,15 @@ static bool    g_bOutputLog = false;
 
 static char szHelpText[] = {
                         "\n"
-                        "help   - returns this message\n"
-                        "status - returns the current FDC status\n"
-                        "dir    - returns a directory listing of the root folder of the SD-Card\n"
-                        "         optionally include a filter.  For example dir .ini\n"
-                        "boot   - selects an ini file to be specified in the boot.cfg\n"
-                        "logon  - enable output of FDC interface logging output\n"
-                        "logoff - disable output of FDC interface logging output\n"
-                        "disks  - returns the stats to the mounted diskettes\n"
-                        "dump   - returns sectors of each track on the indicate drive\n"
+                        "help       - returns this message\n"
+                        "status     - returns the current FDC status\n"
+                        "dir filter - returns a directory listing of the root folder of the SD-Card\n"
+                        "             optionally include a filter.  For example dir .ini\n"
+                        "boot file  - selects an ini file to be specified in the boot.cfg\n"
+                        "logon      - enable output of FDC interface logging output\n"
+                        "logoff     - disable output of FDC interface logging output\n"
+                        "disks      - returns the stats to the mounted diskettes\n"
+                        "dump drive - returns sectors of each track on the indicate drive (0 - 2)\n"
                     };
 
 void InitCli(void)
@@ -172,9 +174,14 @@ void DumpSector(int nDrive, int nTrack, int nSector)
     sleep_ms(5);
 }
 
-void ProcessDumpRequest(void)
+void ProcessDumpRequest(int nDrive)
 {
-    int nDrive  = 0;
+    if ((nDrive < 0) || (nDrive >= MAX_DRIVES))
+    {
+        puts("Invalid drive index specified.");
+        return;
+    }
+
     int nTracks = g_dtDives[nDrive].dmk.byDmkDiskHeader[1];
     int i, j, k;
     int nSides = 2;
@@ -252,7 +259,8 @@ void ProcessCommand(char* psz)
 
     if (stricmp(szCmd, "DUMP") == 0)
     {
-        ProcessDumpRequest();
+        psz = GetWord(psz, szParm1, sizeof(szParm1)-2);
+        ProcessDumpRequest(atoi(szParm1));
         return;
     }
 
