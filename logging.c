@@ -19,6 +19,10 @@ static int      g_nDriveSel = -1;
 static int      g_nCommand = -1;
 static int      g_nCommandType = -1;
 
+LogType fdc_log[LOG_SIZE];
+int log_head = 0;
+int log_tail = 0;
+
 //----------------------------------------------------------------------------
 void PurgeRwBuffer(void)
 {
@@ -490,7 +494,30 @@ void ServiceFdcLog(void)
 
                 byPrevStatus = fdc_log[log_tail].val;
             }
-            break;
+
+			break;
+
+		case port_out:
+            sprintf_s(buf, sizeof(buf)-1, "OUT %02X, %02X", fdc_log[log_tail].op1, fdc_log[log_tail].val);
+
+			#ifdef MFC
+				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
+				WriteLogFile(buf2);
+			#else
+				puts(buf);
+			#endif
+			break;
+
+		case port_in:
+            sprintf_s(buf, sizeof(buf)-1, "IN  %02X, %02X", fdc_log[log_tail].op1, fdc_log[log_tail].val);
+
+			#ifdef MFC
+				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
+				WriteLogFile(buf2);
+			#else
+				puts(buf);
+			#endif
+			break;
     }
 
     ++log_tail;

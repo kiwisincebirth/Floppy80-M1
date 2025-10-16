@@ -178,6 +178,8 @@ enum {
 	read_sector,
 	read_track,
 	read_status,
+	port_out,
+	port_in
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -211,6 +213,7 @@ enum {
 // counter for real time clock (RTC).
 
 extern volatile uint8_t sd_byCardInialized;
+extern volatile byte    g_byFdcIntrActive;
 extern volatile byte    g_byRtcIntrActive;
 extern volatile byte    g_byResetActive;
 extern volatile byte    g_byEnableIntr;
