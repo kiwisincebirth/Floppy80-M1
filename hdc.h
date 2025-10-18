@@ -4,6 +4,7 @@
 #define MAX_VHD_SECTORS_PER_CYLINDER 32
 
 void HdcInit(void);
+void HdcCreateVhd(char* pszFileName, int nHeads, int nCylinders, int nSectors, int nSize);
 void HdcServiceStateMachine(void);
 
 void hdc_port_out(word addr, byte data);

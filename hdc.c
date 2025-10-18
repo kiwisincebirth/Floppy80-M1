@@ -138,22 +138,47 @@ void HdcInit(void)
 	if (g_fVhd == NULL)
 	{
 		g_fVhd = FileOpen("hard0.hdv", FA_CREATE_NEW | FA_WRITE);
-
-		for (i = 0; i < MAX_VHD_HEADS; ++i)
-		{
-			for (j = 0; j < MAX_VHD_CYLINDERS; ++j)
-			{
-				for (k = 0; k < MAX_VHD_SECTORS_PER_CYLINDER; ++k)
-				{
-					FileWrite(g_fVhd, Hdc.bySectorBuffer, 256);
-				}
-			}
-		}
-
+		FileWrite(g_fVhd, Hdc.bySectorBuffer, 256);
 		FileClose(g_fVhd);
 
 		g_fVhd = FileOpen("hard0.hdv", FA_READ | FA_WRITE);
 	}
+}
+
+//-----------------------------------------------------------------------------
+void HdcCreateVhd(char* pszFileName, int nHeads, int nCylinders, int nSectors, int nSize)
+{
+	file* f;
+	int i, j, k;
+
+	f = FileOpen(pszFileName, FA_CREATE_ALWAYS | FA_WRITE);
+
+	if (f == NULL)
+	{
+		printf("Failed to create virtual hard disk file: %s\r\n", pszFileName);
+		return;
+	}
+
+	for (i = 0; i < nHeads; ++i)
+	{
+		printf("Head %d of %d\r\n", i+1, nHeads);
+
+		for (j = 0; j < nCylinders; ++j)
+		{
+			for (k = 0; k < nSectors; ++k)
+			{
+				FileWrite(f, Hdc.bySectorBuffer, nSize);
+			}
+
+			printf(".");
+		}
+
+		puts(".");
+	}
+
+	puts("Done");
+
+	FileClose(f);
 }
 
 //-----------------------------------------------------------------------------
@@ -231,26 +256,28 @@ void ProcessActiveCommand(void)
 			Hdc.byStatusRegister &= ~STATUS_MASK_BUSY;
 			break;
 
-		// case 0x05: // Format Track
-		// 	if (Hdc.nWriteCount > 0)
-		// 	{
-		// 		break;
-		// 	}
+		case 0x05: // Format Track
+			if (Hdc.nWriteCount > 0)
+			{
+				break;
+			}
 
-		// 	nOffset = HdcGetSectorOffset();
+			nOffset = HdcGetSectorOffset();
 
-		// 	FileSeek(g_fVhd, nOffset);
+			FileSeek(g_fVhd, nOffset);
 
-		// 	while (Hdc.bySectorCountRegister > 0)
-		// 	{
-		// 		FileWrite(g_fVhd, Hdc.bySectorBuffer, Hdc.nSectorSize);
-		// 		--Hdc.bySectorCountRegister;
-		// 	}
+			while (Hdc.bySectorCountRegister > 0)
+			{
+				FileWrite(g_fVhd, Hdc.bySectorBuffer, Hdc.nSectorSize);
+				--Hdc.bySectorCountRegister;
+			}
 
-		// 	FileFlush(g_fVhd);
+			FileFlush(g_fVhd);
+			// FileTruncate(g_fVhd);
 
-		// 	Hdc.byActiveCommand = 0;
-		// 	break;
+			Hdc.byActiveCommand = 0;
+			Hdc.byStatusRegister &= ~STATUS_MASK_BUSY;
+			break;
 
 		default:
 			Hdc.byActiveCommand = 0;
@@ -295,7 +322,7 @@ void HdcServiceWriteSectorCommand(void)
 void HdcServiceFormatCommand(void)
 {
 	// Hdc.byActiveCommand = Hdc.byCommandRegister;
-	// Hdc.byStatusRegister |= STATUS_MASK_DATA_REQUEST;
+	Hdc.byStatusRegister |= STATUS_MASK_DATA_REQUEST;
 	Hdc.byStatusRegister &= ~STATUS_MASK_BUSY;
 }
 
@@ -389,6 +416,7 @@ void __not_in_flash_func(hdc_port_out)(word addr, byte data)
 				if (Hdc.nWriteCount == 0)
 				{
 					Hdc.byStatusRegister &= ~STATUS_MASK_DATA_REQUEST;
+					// Hdc.byStatusRegister |= STATUS_MASK_BUSY;
 				}
 			}
 

@@ -9,6 +9,7 @@
 #include "system.h"
 #include "file.h"
 #include "fdc.h"
+#include "hdc.h"
 
 void ServiceFdcLog(void);
 
@@ -39,6 +40,7 @@ static char szHelpText[] = {
                         "logoff     - disable output of FDC interface logging output\n"
                         "disks      - returns the stats to the mounted diskettes\n"
                         "dump drive - returns sectors of each track on the indicate drive (0 - 2)\n"
+                        "hdc file.ext heads cylinders sectors size - creates a new vitual hard disk\n"
                     };
 
 void InitCli(void)
@@ -213,6 +215,36 @@ void ProcessDumpRequest(int nDrive)
     }
 }
 
+void CreateHdcFile(char* psz)
+{
+    char szParm1[16] = {""};
+    char szFileName[32];
+    int  nHeads, nCylinders, nSectors, nSize;
+
+    psz = GetWord(psz, szFileName, sizeof(szFileName)-2);
+
+    psz = GetWord(psz, szParm1, sizeof(szParm1)-2);
+    nHeads = atoi(szParm1);
+
+    psz = GetWord(psz, szParm1, sizeof(szParm1)-2);
+    nCylinders = atoi(szParm1);
+
+    psz = GetWord(psz, szParm1, sizeof(szParm1)-2);
+    nSectors = atoi(szParm1);
+
+    psz = GetWord(psz, szParm1, sizeof(szParm1)-2);
+    nSize = atoi(szParm1);
+
+    printf("File name: %s\r\n"
+           "Heads    : %d\r\n"
+           "Cylinders: %d\r\n"
+           "Sectors  : %d\r\n"
+           "Sec Size : %d\r\n",
+           szFileName, nHeads, nCylinders, nSectors, nSize);
+
+    HdcCreateVhd(szFileName, nHeads, nCylinders, nSectors, nSize);
+}
+
 void ProcessCommand(char* psz)
 {
     char szParm1[16] = {""};
@@ -269,6 +301,12 @@ void ProcessCommand(char* psz)
     {
         psz = GetWord(psz, szParm1, sizeof(szParm1)-2);
         ProcessDumpRequest(atoi(szParm1));
+        return;
+    }
+
+    if (stricmp(szCmd, "HDC") == 0)
+    {
+        CreateHdcFile(psz);
         return;
     }
 

@@ -131,6 +131,8 @@ char* GetWord(char* psz, char* dest, int max_len)
         ++len;
     }
 
+	*dest = 0;
+
     return psz;
 }
 
