@@ -15,6 +15,10 @@ VTDOS 3.0.0           Yes      Yes     Yes    Yes
 VTDOS 4.0.1           Yes      Yes     Yes    Yes
 
 --------------------
+Known issues
+- Backup/cmd fails under some contition.
+
+--------------------
 - CPM 1.4.1 (Lifeboat)
   FORMAT
   - works

@@ -150,12 +150,13 @@ void __not_in_flash_func(ServiceFdcCmdStatusOperation)(void)
 
     if (!get_gpio(RD_PIN))
     {
+        FinishReadOperation(fdc_read_status());
+
         if (!g_byRtcIntrActive) // then caused by WD controller, so clear it
         {
             clr_gpio(INT_PIN);
         }
 
-        FinishReadOperation(fdc_read_status());
         return;
     }
 

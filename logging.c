@@ -20,6 +20,10 @@ static int      g_nCommand = -1;
 static int      g_nCommandType = -1;
 static int      g_nSectorSizes[] = {256, 512, 1024, 128};
 static uint8_t  g_byPrevHdcStatus = 0;
+static uint16_t g_nPrevHdcStatusCount = 0;
+
+static BYTE     g_byPrevFdcStatus = 0;
+static uint16_t g_nPrevFdcStatusCount = 0;
 
 LogType fdc_log[LOG_SIZE];
 int log_head = 0;
@@ -43,6 +47,269 @@ void PurgeRwBuffer(void)
 }
 
 //----------------------------------------------------------------------------
+void PurgeHdcStatus(void)
+{
+	char buf[64];
+
+	if (g_nPrevHdcStatusCount ==  0)
+	{
+		return;
+	}
+
+	sprintf_s(buf, sizeof(buf)-1, "INP CF %02X (Status Reg) x %d", g_byPrevHdcStatus, g_nPrevHdcStatusCount);
+	puts(buf);
+
+	g_byPrevHdcStatus = 0;
+	g_nPrevHdcStatusCount = 0;
+}
+
+//-----------------------------------------------------------------------------
+void fdc_get_status_string(char* buf, int nMaxLen, BYTE byStatus)
+{
+	int nDrive = FdcGetDriveIndex(g_nDriveSel);
+
+	buf[0] = '|';
+	buf[1] = 0;
+
+	if ((nDrive < 0) || (g_dtDives[nDrive].f == NULL))
+	{
+		strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|F_HEADLOAD");
+	}
+	else if (g_nCommandType == 1)
+	{
+		// S0 (BUSY)
+		if (byStatus & F_BUSY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_BUSY|");
+		}
+		
+		// S1 (INDEX) default to 0
+		if (byStatus & F_INDEX)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_INDEX|");
+		}
+
+		// S2 (TRACK 0) default to 0
+		if (byStatus & F_TRACK0)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_TRACK0|");
+		}
+
+		// S3 (CRC ERROR) default to 0
+		if (byStatus & F_CRCERR)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_CRCERR|");
+		}
+
+		// S4 (SEEK ERROR) default to 0
+		if (byStatus & F_SEEKERR)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_SEEKERR|");
+		}
+		
+		if (byStatus & F_HEADLOAD)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_HEADLOAD|");
+		}
+
+		// S6 (PROTECTED) default to 0
+		if (byStatus & F_PROTECTED)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_PROTECTED|");
+		}
+		
+		// S7 (NOT READY) default to 0
+		if (byStatus & F_NOTREADY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
+		}
+	}
+	else if (((g_nCommand & 0xF0) == 0x80) || ((g_nCommand & 0xF0) == 0x90)) // Read Sector
+	{
+		// S0 (BUSY)
+		if (byStatus & F_BUSY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_BUSY|");
+		}
+
+		// S1 (DATA REQUEST)     default to 0
+		if (byStatus & F_DRQ)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_DRQ|");
+		}
+
+		// S2 (LOST DATA)        default to 0
+		if (byStatus & F_LOSTDATA)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_LOSTDATA|");
+		}
+
+		// S3 (CRC ERROR)        default to 0
+		if (byStatus & F_CRCERR)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_CRCERR|");
+		}
+
+		// S4 (RECORD NOT FOUND) default to 0
+		if (byStatus & F_NOTFOUND)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_NOTFOUND|");
+		}
+
+		strcat_s(buf, nMaxLen, (char*)"-|-|");
+
+		// S7 (NOT READY) default to 0
+		if (byStatus & F_NOTREADY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
+		}
+	}
+	else if ((g_nCommand & 0xFE) == 0xE4) // Read Track
+	{
+		// S0 (BUSY)
+		if (byStatus & F_BUSY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_BUSY|");
+		}
+
+		// S1 (DATA REQUEST)     default to 0
+		if (byStatus & F_DRQ)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_DRQ|");
+		}
+
+		// S2 (LOST DATA)        default to 0
+		if (byStatus & F_LOSTDATA)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_LOSTDATA|");
+		}
+
+		strcat_s(buf, nMaxLen, (char*)"-|-|-|-|");
+
+		// S7 (NOT READY) default to 0
+		if (byStatus & F_NOTREADY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
+		}
+	}
+	else if (((g_nCommand & 0xF0) == 0xA0) || ((g_nCommand & 0xF0) == 0xB0)) // Write Sector
+	{
+		// S0 (BUSY)
+		if (byStatus & F_BUSY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_BUSY|");
+		}
+
+		// S1 (DATA REQUEST)     default to 0
+		if (byStatus & F_DRQ)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_DRQ|");
+		}
+
+		// S2 (LOST DATA)        default to 0
+		if (byStatus & F_LOSTDATA)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_LOSTDATA|");
+		}
+
+		// S3 (CRC ERROR)        default to 0
+		if (byStatus & F_CRCERR)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_CRCERR|");
+		}
+
+		// S4 (RECORD NOT FOUND) default to 0
+		if (byStatus & F_NOTFOUND)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_NOTFOUND|");
+		}
+		
+		// S5 (WRITER FAULT) default to 0
+		if (byStatus & F_WRFAULT)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_WRITE_FAULT|");
+		}
+
+		// S6 (PROTECTED) default to 0
+		if (byStatus & F_PROTECTED)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_PROTECTED|");
+		}
+
+		// S7 (NOT READY) default to 0
+		if (byStatus & F_NOTREADY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
+		}
+	}
+	else if ((g_nCommand == 0xF0) || (g_nCommand == 0xF4)) // Write Track
+	{
+		// S0 (BUSY)
+		if (byStatus & F_BUSY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_BUSY|");
+		}
+
+		// S1 (DATA REQUEST)     default to 0
+		if (byStatus & F_DRQ)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_DRQ|");
+		}
+
+		// S2 (LOST DATA)        default to 0
+		if (byStatus & F_LOSTDATA)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_LOSTDATA|");
+		}
+
+		strcat_s(buf, nMaxLen, (char*)"-|-|");
+
+		// S5 (WRITER FAULT) default to 0
+		if (byStatus & F_WRFAULT)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_WRITE_FAULT|");
+		}
+
+		// S6 (PROTECTED) default to 0
+		if (byStatus & F_PROTECTED)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_PROTECTED|");
+		}
+
+		// S7 (NOT READY) default to 0
+		if (byStatus & F_NOTREADY)
+		{
+			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
+		}
+	}
+}
+
+//----------------------------------------------------------------------------
+void PurgeFdcStatus(void)
+{
+	char buf[64];
+	char buf2[64];
+
+	if (g_nPrevFdcStatusCount ==  0)
+	{
+		return;
+	}
+
+	fdc_get_status_string(buf, sizeof(buf)-1, g_byPrevFdcStatus);
+	sprintf_s(buf2, sizeof(buf2)-1, "RD STATUS %02X CMD TYPE %d (%s)", fdc_log[log_tail].val, g_nCommandType, buf);
+
+	#ifdef MFC
+		strcat_s(buf2, sizeof(buf2)-1, "\r\n");
+		WriteLogFile(buf2);
+	#else
+		puts(buf2);
+	#endif
+
+	g_byPrevFdcStatus = 0;
+	g_nPrevFdcStatusCount = 0;
+}
+
+//----------------------------------------------------------------------------
 void GetCommandText(char* psz, int nMaxLen, BYTE byCmd, BYTE op1, BYTE op2)
 {
 	*psz = 0;
@@ -55,7 +322,7 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd, BYTE op1, BYTE op2)
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X PERCOM DOUBLER MFM", byCmd);
 	}
-	else if ((byCmd & 0xF0) == 0)         // 0000xxxx
+	else if ((byCmd & 0xF0) == 0)    // 0000xxxx
 	{
 		sprintf_s(psz, nMaxLen, "CMD: %02X Restore", byCmd);
 		g_nCommandType = 1;
@@ -151,123 +418,7 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd, BYTE op1, BYTE op2)
 //-----------------------------------------------------------------------------
 extern int __not_in_flash_func(FdcGetDriveIndex)(int nDriveSel);
 
-//-----------------------------------------------------------------------------
-void __not_in_flash_func(fdc_get_status_string)(char* buf, int nMaxLen, BYTE byStatus)
-{
-	int nDrive = FdcGetDriveIndex(g_nDriveSel);
 
-	buf[0] = '|';
-	buf[1] = 0;
-
-	if ((nDrive < 0) || (g_dtDives[nDrive].f == NULL))
-	{
-		strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|F_HEADLOAD");
-	}
-	else if ((g_nCommandType == 1) || // Restore, Seek, Step, Step In, Step Out
-             (g_nCommandType == 4))   // Force Interrupt
-	{
-		// S0 (BUSY)
-		if (byStatus & F_BUSY)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_BUSY|");
-		}
-		
-		// S1 (INDEX) default to 0
-		if (byStatus & F_INDEX)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_INDEX|");
-		}
-
-		// S2 (TRACK 0) default to 0
-		if (byStatus & F_TRACK0)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_TRACK0|");
-		}
-
-		// S3 (CRC ERROR) default to 0
-		if (byStatus & F_CRCERR)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_CRCERR|");
-		}
-
-		// S4 (SEEK ERROR) default to 0
-		if (byStatus & F_SEEKERR)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_SEEKERR|");
-		}
-		
-		if (byStatus & F_HEADLOAD)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_HEADLOAD|");
-		}
-
-		// S6 (PROTECTED) default to 0
-		if (byStatus & F_PROTECTED)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_PROTECTED|");
-		}
-		
-		// S7 (NOT READY) default to 0
-		if (byStatus & F_NOTREADY)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
-		}
-	}
-	else if ((g_nCommandType == 2) ||	// Read Sector, Write Sector
-			 (g_nCommandType == 3))	// Read Address, Read Track, Write Track
-	{
-		// S0 (BUSY)
-		if (byStatus & F_BUSY)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_BUSY|");
-		}
-	
-		// S1 (DATA REQUEST)     default to 0
-		if (byStatus & F_DRQ)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_DRQ|");
-		}
-
-		// S2 (LOST DATA)        default to 0
-		if (byStatus & F_LOSTDATA)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_LOSTDATA|");
-		}
-		
-		// S3 (CRC ERROR)        default to 0
-		if (byStatus & F_CRCERR)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_CRCERR|");
-		}
-		
-		// S4 (RECORD NOT FOUND) default to 0
-		if (byStatus & F_NOTFOUND)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_NOTFOUND|");
-		}
-	
-		// S5 (RECORD TYPE) default to 0
-		if (byStatus & F_DELETED)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_DELETED|");
-		}
-
-		// S6 (PROTECTED) default to 0
-		if (byStatus & F_PROTECT)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_PROTECT|");
-		}
-
-		// S7 (NOT READY) default to 0
-		if (byStatus & F_NOTREADY)
-		{
-			strcat_s(buf, nMaxLen, (char*)"F_NOTREADY|");
-		}
-	}
-	else // Force Interrupt
-	{
-	}
-}
 
 void AppendHdcCommandString(char* psz, int nMaxLen, byte byCmd)
 {
@@ -304,12 +455,16 @@ void ServicePortOutLog(void)
     char buf[64];
 	char t[8];
 
-	g_byPrevHdcStatus = 0;
+	PurgeHdcStatus();
+
+	if (fdc_log[log_tail].op1 != 0xC8)
+	{
+        PurgeRwBuffer();
+	}
 
 	switch (fdc_log[log_tail].op1)
 	{
 		case 0xC1: // Hard disk controller board control register (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X ", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -350,7 +505,6 @@ void ServicePortOutLog(void)
 			break;
 
 		case 0xC9: // Hard Disk Write Pre-Comp Cyl.
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X (Write Pre-Comp)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -361,7 +515,6 @@ void ServicePortOutLog(void)
 			break;
 
 		case 0xCA: // Hard Disk Sector Count (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X (Sector Count)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -372,7 +525,6 @@ void ServicePortOutLog(void)
 			break;
 
 		case 0xCB: // Hard Disk Sector Number (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X (Sector Number)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -383,7 +535,6 @@ void ServicePortOutLog(void)
 			break;
 
 		case 0xCC: // Hard Disk Cylinder LSB (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X (Cylinder LSB)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -394,7 +545,6 @@ void ServicePortOutLog(void)
 			break;
 
 		case 0xCD: // Hard Disk Cylinder MSB (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X (Cylinder MSB)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -405,7 +555,6 @@ void ServicePortOutLog(void)
 			break;
 
 		case 0xCE: // Hard Disk Sector Size / Drive # / Head # (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X SDH: Sector Size %d, Drive Sel %d, Head Sel %d",
 					  fdc_log[log_tail].op1, fdc_log[log_tail].val,
 					  g_nSectorSizes[(fdc_log[log_tail].val >> 5) & 0x03],
@@ -421,7 +570,6 @@ void ServicePortOutLog(void)
 			break;
 
 		case 0xCF: // Command/Status Register for WD1010 Winchester Disk Controller Chip.
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X CMD: ", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			AppendHdcCommandString(buf, sizeof(buf)-1, fdc_log[log_tail].val);
 			#ifdef MFC
@@ -433,7 +581,6 @@ void ServicePortOutLog(void)
 			break;
 
 		default:
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "OUT %02X %02X ", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -452,13 +599,17 @@ void ServicePortInLog(void)
 
 	if (fdc_log[log_tail].op1 != 0xCF)
 	{
-		g_byPrevHdcStatus = 0;
+		PurgeHdcStatus();
+	}
+
+	if (fdc_log[log_tail].op1 != 0xC8)
+	{
+        PurgeRwBuffer();
 	}
 
 	switch (fdc_log[log_tail].op1)
 	{
 		case 0xC1: // Hard disk controller board control register (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X ", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -499,7 +650,6 @@ void ServicePortInLog(void)
 			break;
 
 		case 0xC9: // Hard Disk Write Pre-Comp Cyl.
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Error Register)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -510,7 +660,6 @@ void ServicePortInLog(void)
 			break;
 
 		case 0xCA: // Hard Disk Sector Count (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Sector Count)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -521,7 +670,6 @@ void ServicePortInLog(void)
 			break;
 
 		case 0xCB: // Hard Disk Sector Number (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Sector Number)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -532,7 +680,6 @@ void ServicePortInLog(void)
 			break;
 
 		case 0xCC: // Hard Disk Cylinder LSB (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Cylinder LSB)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -543,7 +690,6 @@ void ServicePortInLog(void)
 			break;
 
 		case 0xCD: // Hard Disk Cylinder MSB (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Cylinder MSB)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -554,7 +700,6 @@ void ServicePortInLog(void)
 			break;
 
 		case 0xCE: // Hard Disk Sector Size / Drive # / Head # (Read/Write).
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (SDH)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -565,25 +710,20 @@ void ServicePortInLog(void)
 			break;
 
 		case 0xCF: // Command/Status Register for WD1010 Winchester Disk Controller Chip.
-			PurgeRwBuffer();
-
             if (g_byPrevHdcStatus != fdc_log[log_tail].val)
 			{
-				sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X (Status Reg)", fdc_log[log_tail].op1, fdc_log[log_tail].val);
-				#ifdef MFC
-					strcat_s(buf2, sizeof(buf2)-1, "\r\n");
-					WriteLogFile(buf2);
-				#else
-					puts(buf);
-				#endif
-
+				PurgeHdcStatus();
 				g_byPrevHdcStatus = fdc_log[log_tail].val;
+				g_nPrevHdcStatusCount = 1;
+			}
+			else
+			{
+				++g_nPrevHdcStatusCount;
 			}
 
 			break;
 
 		default:
-            PurgeRwBuffer();
 			sprintf_s(buf, sizeof(buf)-1, "INP %02X %02X ", fdc_log[log_tail].op1, fdc_log[log_tail].val);
 			#ifdef MFC
 				strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -598,7 +738,6 @@ void ServicePortInLog(void)
 //----------------------------------------------------------------------------
 void ServiceFdcLog(void)
 {
-	static BYTE byPrevStatus = 0;
 	static BYTE byPrevDrvSelRd = 0;
 	static BYTE byDrvSelRdCount = 0;
     char buf[64];
@@ -736,9 +875,9 @@ void ServiceFdcLog(void)
 
         case write_cmd:
         	PurgeRwBuffer();
+			PurgeFdcStatus();
 
 			g_nCommand = fdc_log[log_tail].val;
-
             GetCommandText(buf, sizeof(buf), fdc_log[log_tail].val, fdc_log[log_tail].op1, fdc_log[log_tail].op2);
 
             #ifdef MFC
@@ -804,25 +943,21 @@ void ServiceFdcLog(void)
             break;
 
         case read_status:
-            if (byPrevStatus != fdc_log[log_tail].val)
+            if (g_byPrevFdcStatus != fdc_log[log_tail].val)
             {
                 char buf[64];
                 char buf2[128];
 
                 PurgeRwBuffer();
+				PurgeFdcStatus();
 
-                fdc_get_status_string(buf, sizeof(buf)-1, fdc_log[log_tail].val);
-                sprintf_s(buf2, sizeof(buf2)-1, "RD STATUS %02X CMD TYPE %d (%s)", fdc_log[log_tail].val, g_nCommandType, buf);
-
-                #ifdef MFC
-                    strcat_s(buf2, sizeof(buf2)-1, "\r\n");
-                    WriteLogFile(buf2);
-                #else
-                    puts(buf2);
-                #endif
-
-                byPrevStatus = fdc_log[log_tail].val;
+                g_byPrevFdcStatus = fdc_log[log_tail].val;
+				g_nPrevFdcStatusCount = 1;
             }
+			else
+			{
+				++g_nPrevFdcStatusCount;
+			}
 
 			break;
 

@@ -1,6 +1,7 @@
 #include "defines.h"
 #include "system.h"
 #include "fdc.h"
+#include "hdc.h"
 #include "file.h"
 #include "stdlib.h"
 #include "ctype.h"
@@ -56,6 +57,9 @@ void InitVars(void)
 	g_byIntrRequest   = 0;
 	g_byResetActive   = true;
 	g_byEnableIntr    = false;
+
+	memset(&Hdc, 0, sizeof(Hdc));
+	memset(Vhd, 0, sizeof(Vhd));
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////

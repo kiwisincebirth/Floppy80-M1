@@ -14,6 +14,7 @@
 #include "system.h"
 #include "crc.h"
 #include "fdc.h"
+#include "hdc.h"
 
 // #pragma GCC optimize ("Og")
 
@@ -27,7 +28,7 @@
 	#define __not_in_flash_func(x) x
 #endif
 
-#undef ENABLE_LOGGING
+// #undef ENABLE_LOGGING
 
 ////////////////////////////////////////////////////////////////////////////////////
 /*
@@ -1340,6 +1341,14 @@ void FdcProcessConfigEntry(char szLabel[], char* psz)
 	else if ((strcmp(szLabel, "DRIVE3") == 0) && (MAX_DRIVES > 3))
 	{
 		CopyString(psz, g_dtDives[3].szFileName, sizeof(g_dtDives[3].szFileName)-2);
+	}
+	else if ((strcmp(szLabel, "HD0") == 0) && (MAX_VHD_DRIVES > 0))
+	{
+		HdcInitFileName(0, psz);
+	}
+	else if ((strcmp(szLabel, "HD1") == 0) && (MAX_VHD_DRIVES > 1))
+	{
+		HdcInitFileName(1, psz);
 	}
 }
 
@@ -2887,6 +2896,14 @@ void FdcProcessStatusRequest(byte print)
 			sprintf_s(szBuf, sizeof(szBuf)-1, "%d: ", i);
 			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szBuf);
 			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, g_dtDives[i].szFileName);
+			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
+		}
+
+		for (i = 0; i < MAX_VHD_DRIVES; ++i)
+		{
+			sprintf_s(szBuf, sizeof(szBuf)-1, "%d: ", i+4);
+			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szBuf);
+			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, Vhd[i].szFileName);
 			strcat_s((char*)(g_bFdcResponse.buf), sizeof(g_bFdcResponse.buf)-1, szLineEnd);
 		}
 	}

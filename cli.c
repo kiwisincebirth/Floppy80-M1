@@ -40,7 +40,8 @@ static char szHelpText[] = {
                         "logoff     - disable output of FDC interface logging output\n"
                         "disks      - returns the stats to the mounted diskettes\n"
                         "dump drive - returns sectors of each track on the indicate drive (0 - 2)\n"
-                        "hdc file.ext heads cylinders sectors size - creates a new vitual hard disk\n"
+                        "hdc        - creates a new vitual hard disk. Usage:\n"
+                        "             hdc file.ext heads cylinders sectors\n"
                     };
 
 void InitCli(void)
@@ -73,11 +74,11 @@ void ListFiles(char* pszFilter)
 
     			if (nCol < 5)
 				{
-                    printf("%30s %7d", fno.fname, fno.fsize);
+                    printf("%30s %9d", fno.fname, fno.fsize);
                 }
                 else
                 {
-                    printf("%30s %7d\r\n", fno.fname, fno.fsize);
+                    printf("%30s %9d\r\n", fno.fname, fno.fsize);
                     nCol = 0;
                 }
             }
@@ -219,7 +220,7 @@ void CreateHdcFile(char* psz)
 {
     char szParm1[16] = {""};
     char szFileName[32];
-    int  nHeads, nCylinders, nSectors, nSize;
+    int  nHeads, nCylinders, nSectors;
 
     psz = GetWord(psz, szFileName, sizeof(szFileName)-2);
 
@@ -232,17 +233,13 @@ void CreateHdcFile(char* psz)
     psz = GetWord(psz, szParm1, sizeof(szParm1)-2);
     nSectors = atoi(szParm1);
 
-    psz = GetWord(psz, szParm1, sizeof(szParm1)-2);
-    nSize = atoi(szParm1);
-
     printf("File name: %s\r\n"
            "Heads    : %d\r\n"
            "Cylinders: %d\r\n"
-           "Sectors  : %d\r\n"
-           "Sec Size : %d\r\n",
-           szFileName, nHeads, nCylinders, nSectors, nSize);
+           "Sectors  : %d\r\n",
+           szFileName, nHeads, nCylinders, nSectors);
 
-    HdcCreateVhd(szFileName, nHeads, nCylinders, nSectors, nSize);
+    HdcCreateVhd(szFileName, nHeads, nCylinders, nSectors);
 }
 
 void ProcessCommand(char* psz)

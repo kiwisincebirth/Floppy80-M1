@@ -78,78 +78,103 @@
 //
 //		  Write = Command Register.
 
-#define ERROR_MASK_DAM_NOT_FOUND      0x01
-#define ERROR_MASK_TR000              0x02
-#define ERROR_MASK_ABORTED_COMMAND    0x04
-#define ERROR_MASK_UNDEFINED          0x08
-#define ERROR_MASK_ID_NOT_FOUND       0x10
-#define ERROR_MASK_CRC_ERROR_ID_FIELD 0x20
-#define ERROR_MASK_UNCORRECTABLE      0x40
-#define ERROR_MASK_BAD_BLOCK_DETECTED 0x80
-
-#define STATUS_MASK_ERROR          0x01
-#define STATUS_MASK_NOT_USED       0x02
-#define STATUS_MASK_CORRECTED_DATA 0x04
-#define STATUS_MASK_DATA_REQUEST   0x08
-#define STATUS_MASK_SEEK_COMPLETE  0x10
-#define STATUS_MASK_WRITE_FAULT    0x20
-#define STATUS_MASK_DRIVE_READY    0x40
-#define STATUS_MASK_BUSY           0x80
-
-typedef struct {
-	byte  byErrorRegister;
-	byte  byWritePrecompRegister;
-	byte  bySectorCountRegister;
-	byte  bySectorNumberRegister;
-	byte  byHighCylinderRegister;
-	byte  byLowCylinderRegister;
-	byte  bySDH_Register;
-	byte  byStatusRegister;
-	byte  byWriteProtectRegister; // also Interrupt Request flag (MS bit)
-	byte  byCommandRegister;
-	byte  byInterruptRequest;
-	byte  bySectorBuffer[2048];
-	int   nSectorSize;
-	byte  byDriveSel;
-	byte  byHeadSel;
-	byte* pbyReadPtr;
-	int   nReadCount;
-	byte* pbyWritePtr;
-	int   nWriteCount;
-	byte  byActiveCommand;
-} HdcType;
-
 HdcType Hdc;
-
-file* g_fVhd = NULL;
+VhdType Vhd[MAX_VHD_DRIVES];
 
 static int g_nSectorSizes[] = {256, 512, 1024, 128};
 
 //-----------------------------------------------------------------------------
-void HdcInit(void)
+void HdcInitFileName(int nDrive, char* pszFileName)
 {
-	int i, j, k;
-
-	memset(&Hdc, 0, sizeof(Hdc));
-	Hdc.byStatusRegister |= STATUS_MASK_DRIVE_READY;
-
-	g_fVhd = FileOpen("hard0.hdv", FA_OPEN_EXISTING | FA_READ | FA_WRITE);
-
-	if (g_fVhd == NULL)
+	if ((nDrive >= 0) && (nDrive < MAX_VHD_DRIVES))
 	{
-		g_fVhd = FileOpen("hard0.hdv", FA_CREATE_NEW | FA_WRITE);
-		FileWrite(g_fVhd, Hdc.bySectorBuffer, 256);
-		FileClose(g_fVhd);
-
-		g_fVhd = FileOpen("hard0.hdv", FA_READ | FA_WRITE);
+		strcpy_s(Vhd[nDrive].szFileName, sizeof(Vhd[nDrive].szFileName), pszFileName);
 	}
 }
 
 //-----------------------------------------------------------------------------
-void HdcCreateVhd(char* pszFileName, int nHeads, int nCylinders, int nSectors, int nSize)
+void HdcInit(void)
+{
+	int nSectors, i;
+
+	memset(&Hdc, 0, sizeof(Hdc));
+	Hdc.byStatusRegister |= STATUS_MASK_DRIVE_READY;
+
+	for (i = 0; i < MAX_VHD_DRIVES; ++i)
+	{
+		if (Vhd[i].szFileName[0] != 0)
+		{
+			Vhd[i].f = FileOpen(Vhd[i].szFileName, FA_OPEN_EXISTING | FA_READ | FA_WRITE);
+
+			memset(Vhd[i].byBuf, 0, sizeof(Vhd[i].byBuf));
+
+			if (Vhd[i].f != NULL)
+			{
+				FileRead(Vhd[i].f, Vhd[i].byBuf, sizeof(Vhd[i].byBuf));
+
+				Vhd[i].nHeads     = Vhd[i].byBuf[26];
+				Vhd[i].nCylinders = ((Vhd[i].byBuf[27] & 0x07) << 8) + Vhd[i].byBuf[28];
+
+				nSectors = Vhd[i].byBuf[29];
+
+				if (nSectors == 0)
+				{
+					nSectors = 256;
+				}
+
+				if (Vhd[i].nHeads == 0)
+				{
+					Vhd[i].nSectors = 32;
+					Vhd[i].nHeads   = nSectors / Vhd[i].nSectors;
+				}
+				else
+				{
+					Vhd[i].nSectors = nSectors / Vhd[i].nHeads;
+				}
+			}
+		}
+	}
+}
+
+//-----------------------------------------------------------------------------
+void HdcCreateVhd(char* pszFileName, int nHeads, int nCylinders, int nSectors)
 {
 	file* f;
 	int i, j, k;
+
+	memset(Hdc.bySectorBuffer, 0, sizeof(Hdc.bySectorBuffer));
+	Hdc.bySectorBuffer[0]  = 0x56;	 // Magic number Byte 0
+	Hdc.bySectorBuffer[1]  = 0xCB;	 // Magic number Byte 1
+	Hdc.bySectorBuffer[2]  = 0x10;	 // Format version (0x10 = 1.0)
+	Hdc.bySectorBuffer[3]  = 0;		 // Checksum (not used)
+	Hdc.bySectorBuffer[4]  = 1;		 // Must me 1
+	Hdc.bySectorBuffer[5]  = 4;		 // Must be 4
+	Hdc.bySectorBuffer[6]  = 0;		 // Media type (0 = hard drive)
+	Hdc.bySectorBuffer[7]  = 0;		 // Write protection (0x80 = write protected; 0 = not write protected)
+	Hdc.bySectorBuffer[8]  = 0;		 // Flags: bit 0 = auto boot; bit 1 - 7 reserved;
+	Hdc.bySectorBuffer[9]  = 0;		 // Reserved
+	Hdc.bySectorBuffer[10] = 0;		 // Reserved
+	Hdc.bySectorBuffer[11] = 1;		 // DOS type (only needed for auto boot)
+									 //   0 = Model 4 LSDOS
+									 //   1 = Model I/III (LSDOS)
+									 //   2 = CP/M
+									 //   3 = NEWDOS
+	// bytes 12-25 reserved
+	Hdc.bySectorBuffer[26] = nHeads; // If non-zero, number of heads per cylinder
+									 // If zero, number of heads per cylinder is calculated as
+									 // number of sectors per cylinder + (byte 29) divided by 32.
+
+	Hdc.bySectorBuffer[27] = nCylinders >> 8;	// Number of cylinders per disk (high 3 bits)
+	Hdc.bySectorBuffer[28] = nCylinders	& 0xFF; // Number of cylinders per disk (lower 8 bits)
+												// This is the number of cylinders on the drive. which shouldn’t be higher than 1024.
+												// To preserve backwards compatibility, values of 0 in both bytes 27 and 28 means 256.
+	Hdc.bySectorBuffer[29] = nSectors;			// Number of sectors per cylinder
+
+	// 30 		Number of granules per track (deprecated)
+	// 31 		Directory cylinder (deprecated, should be 1)
+	// 32–71 	Reserved
+	// 72-103 	Reserved for storage of auto-boot data
+	// 104-255 Reserved 	
 
 	f = FileOpen(pszFileName, FA_CREATE_ALWAYS | FA_WRITE);
 
@@ -159,37 +184,19 @@ void HdcCreateVhd(char* pszFileName, int nHeads, int nCylinders, int nSectors, i
 		return;
 	}
 
-	for (i = 0; i < nHeads; ++i)
-	{
-		printf("Head %d of %d\r\n", i+1, nHeads);
-
-		for (j = 0; j < nCylinders; ++j)
-		{
-			for (k = 0; k < nSectors; ++k)
-			{
-				FileWrite(f, Hdc.bySectorBuffer, nSize);
-			}
-
-			printf(".");
-		}
-
-		puts(".");
-	}
+	FileWrite(f, Hdc.bySectorBuffer, 256);
+	FileClose(f);
 
 	puts("Done");
-
-	FileClose(f);
 }
 
 //-----------------------------------------------------------------------------
 uint32_t HdcGetSectorOffset(void)
 {
-	// SectorData[nMaxHeads][nMaxCylinders][nMaxSectorsPerCylinder][nSectorSize]
-
 	uint32_t nCylinder = (Hdc.byHighCylinderRegister << 8) + Hdc.byLowCylinderRegister;
-	uint32_t nOffset   = Hdc.byHeadSel * MAX_VHD_CYLINDERS * MAX_VHD_SECTORS_PER_CYLINDER * Hdc.nSectorSize +
-						 nCylinder * MAX_VHD_SECTORS_PER_CYLINDER * Hdc.nSectorSize +
-						 Hdc.bySectorNumberRegister * Hdc.nSectorSize;
+	uint32_t nOffset = nCylinder * Vhd[Hdc.byDriveSel].nHeads * Vhd[Hdc.byDriveSel].nSectors * Hdc.nSectorSize +
+	                   Hdc.byHeadSel * Vhd[Hdc.byDriveSel].nSectors * Hdc.nSectorSize +
+					   Hdc.bySectorNumberRegister * Hdc.nSectorSize + 256;
 
 	return nOffset;
 }
@@ -202,7 +209,19 @@ void HdcDumpDisk(void)
 	int   head = 0, cyl = 0, sec = 0;
 	int   i = 0, j = 0, k = 0;
 
-	FileSeek(g_fVhd, 0);
+	if (Hdc.byDriveSel >= MAX_VHD_DRIVES)
+	{
+		puts("Invalid drive index");
+		return;
+	}
+
+	if (Vhd[Hdc.byDriveSel].f == NULL)
+	{
+		puts("Drive not mounted");
+		return;
+	}
+
+	FileSeek(Vhd[Hdc.byDriveSel].f, 256);
 
 	// for (head = 0; head < MAX_VHD_HEADS; ++head)
 	// {
@@ -210,7 +229,7 @@ void HdcDumpDisk(void)
 		{
 			for (sec = 0; sec < MAX_VHD_SECTORS_PER_CYLINDER; ++sec)
 			{
-				FileRead(g_fVhd, byBuf, sizeof(byBuf));
+				FileRead(Vhd[Hdc.byDriveSel].f, byBuf, sizeof(byBuf));
 			
                 printf("HEAD: %02X CYL: %02X SEC: %02X\r\n", head, cyl, sec);
     	        // while (tud_cdc_write_available() < 56);
@@ -238,6 +257,13 @@ void ProcessActiveCommand(void)
 {
 	uint32_t nOffset, i;
 
+	if ((Hdc.byDriveSel >= MAX_VHD_DRIVES) || (Vhd[Hdc.byDriveSel].f == NULL))
+	{
+		Hdc.byActiveCommand = 0;
+		Hdc.byStatusRegister &= ~STATUS_MASK_BUSY;
+		return;
+	}
+
 	switch (Hdc.byActiveCommand >> 4)
 	{
 		case 0x03: // Write Sector
@@ -248,9 +274,9 @@ void ProcessActiveCommand(void)
 
 			nOffset = HdcGetSectorOffset();
 
-			FileSeek(g_fVhd, nOffset);
-			FileWrite(g_fVhd, Hdc.bySectorBuffer, Hdc.nSectorSize);
-			FileFlush(g_fVhd);
+			FileSeek(Vhd[Hdc.byDriveSel].f, nOffset);
+			FileWrite(Vhd[Hdc.byDriveSel].f, Hdc.bySectorBuffer, Hdc.nSectorSize);
+			FileFlush(Vhd[Hdc.byDriveSel].f);
 
 			Hdc.byActiveCommand = 0;
 			Hdc.byStatusRegister &= ~STATUS_MASK_BUSY;
@@ -264,15 +290,15 @@ void ProcessActiveCommand(void)
 
 			nOffset = HdcGetSectorOffset();
 
-			FileSeek(g_fVhd, nOffset);
+			FileSeek(Vhd[Hdc.byDriveSel].f, nOffset);
 
 			while (Hdc.bySectorCountRegister > 0)
 			{
-				FileWrite(g_fVhd, Hdc.bySectorBuffer, Hdc.nSectorSize);
+				FileWrite(Vhd[Hdc.byDriveSel].f, Hdc.bySectorBuffer, Hdc.nSectorSize);
 				--Hdc.bySectorCountRegister;
 			}
 
-			FileFlush(g_fVhd);
+			FileFlush(Vhd[Hdc.byDriveSel].f);
 			// FileTruncate(g_fVhd);
 
 			Hdc.byActiveCommand = 0;
@@ -295,6 +321,13 @@ void HdcServiceRestoreCommand(void)
 //-----------------------------------------------------------------------------
 void HdcServiceReadSectorCommand(void)
 {
+	if ((Hdc.byDriveSel >= MAX_VHD_DRIVES) || (Vhd[Hdc.byDriveSel].f == NULL))
+	{
+		Hdc.byActiveCommand = 0;
+		Hdc.byStatusRegister &= ~STATUS_MASK_BUSY;
+		return;
+	}
+
 	Hdc.nSectorSize = g_nSectorSizes[(Hdc.bySDH_Register >> 5) & 0x03];
 	Hdc.byDriveSel  = (Hdc.bySDH_Register >> 3) & 0x03;
 	Hdc.byHeadSel   = Hdc.bySDH_Register & 0x07;
@@ -304,8 +337,8 @@ void HdcServiceReadSectorCommand(void)
 
 	uint32_t nOffset = HdcGetSectorOffset();
 
-	FileSeek(g_fVhd, nOffset);
-	FileRead(g_fVhd, Hdc.bySectorBuffer, Hdc.nSectorSize);
+	FileSeek(Vhd[Hdc.byDriveSel].f, nOffset);
+	FileRead(Vhd[Hdc.byDriveSel].f, Hdc.bySectorBuffer, Hdc.nSectorSize);
 
 	Hdc.byStatusRegister |= STATUS_MASK_DATA_REQUEST;
 	Hdc.byStatusRegister &= ~STATUS_MASK_BUSY;
