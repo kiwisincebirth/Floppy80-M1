@@ -305,11 +305,8 @@ void __not_in_flash_func(ServicePortOut)(word addr)
 //-----------------------------------------------------------------------------
 void __not_in_flash_func(service_memory)(void)
 {
-    byte data;
-    union {
-        byte b[2];
-        word w;
-    } addr;
+    register word bus;
+    register word addr;
 
     // systick_hw->csr = 0x5;
     // systick_hw->rvr = 0x00FFFFFF;
@@ -325,8 +322,10 @@ void __not_in_flash_func(service_memory)(void)
 
        	g_byResetActive = false;
 
-        // wait for MREQ, IN and OUT to go inactive
-        while (!get_gpio(MREQ_PIN) || !get_gpio(IN_PIN) || !get_gpio(OUT_PIN));
+        // wait for MREQ, IN, RD, WR and OUT to go inactive
+        do {
+            bus = sio_hw->gpio_in >> IN_PIN;
+        } while ((bus & 0x1F) != 0x1F);
 
         // turn bus around
         set_gpio(DATAB_OE_PIN); // disable data bus transciever
@@ -339,12 +338,14 @@ void __not_in_flash_func(service_memory)(void)
         clr_gpio(ADDRL_OE_PIN);
         NopDelay();
 
-        // wait for MREQ, IN or OUT to go active, reading low address byte while waiting
+        // wait for MREQ, IN, RD, WR or OUT to go active, reading low address byte while waiting
         do {
-            addr.b[0] = get_gpio_data_byte();
-        } while (get_gpio(MREQ_PIN) && get_gpio(IN_PIN) && get_gpio(OUT_PIN));
+            bus = sio_hw->gpio_in >> IN_PIN;
+        } while ((bus & 0x1F) == 0x1F);
 
+        addr = (bus >> (D0_PIN - IN_PIN)) & 0xFF;
         set_gpio(ADDRL_OE_PIN);
+        clr_gpio(ADDRH_OE_PIN);
 
 #ifdef PICO_RP2040
         set_gpio(WAIT_PIN);
@@ -359,75 +360,63 @@ void __not_in_flash_func(service_memory)(void)
         }
 
         // read high address byte
-        clr_gpio(ADDRH_OE_PIN);
-        NopDelay();
-        addr.b[1] = get_gpio_data_byte();
+        addr = addr + ((get_gpio_data_byte() & 0xFF) << 8);
         set_gpio(ADDRH_OE_PIN);
 
-        set_gpio(WAIT_PIN);
+        // set_gpio(WAIT_PIN);
 
-        if (!get_gpio(MREQ_PIN))
+        if (!(bus & 0x01))
         {
-            if (addr.w >= 0x8000)
+            ServicePortIn(addr);
+        }
+        else if (!(bus & 0x08))
+        {
+            ServicePortOut(addr);
+        }
+        else if (addr >= 0x8000)
+        {
+            ServiceHighMemoryOperation(addr);
+        }
+        else if ((addr >= 0x37E0) && (addr <= 0x37EF))
+        {
+            switch (addr)
             {
-                ServiceHighMemoryOperation(addr.w);
-            }
-            else if ((addr.w >= 0x37E0) && (addr.w <= 0x37EF))
-            {
-                switch (addr.w)
-                {
-                    case 0x37E0:
-                    case 0x37E1:
-                    case 0x37E2:
-                    case 0x37E3:
-                        ServiceFdcDriveSelectOperation();
-                        break;
+                case 0x37E0:
+                case 0x37E1:
+                case 0x37E2:
+                case 0x37E3:
+                    ServiceFdcDriveSelectOperation();
+                    break;
 
-                    case 0x37EC:
-                        ServiceFdcCmdStatusOperation();
-                        break;
+                case 0x37EC:
+                    ServiceFdcCmdStatusOperation();
+                    break;
 
-                    case 0x37ED:
-                        ServiceFdcTrackOperation();
-                        break;
+                case 0x37ED:
+                    ServiceFdcTrackOperation();
+                    break;
 
-                    case 0x37EE:
-                        ServiceFdcSectorOperation();
-                        break;
+                case 0x37EE:
+                    ServiceFdcSectorOperation();
+                    break;
 
-                    case 0x37EF:
-                        ServiceFdcDataOperation();
-                        break;
-                }
-            }
-            else if ((addr.w >= FDC_REQUEST_ADDR_START) && (addr.w <= FDC_REQUEST_ADDR_STOP))
-            {
-                // set_gpio(WAIT_PIN);
-                ServiceFdcRequestOperation(addr.w);
-            }
-            else if ((addr.w >= FDC_RESPONSE_ADDR_START) && (addr.w <= FDC_RESPONSE_ADDR_STOP))
-            {
-                // set_gpio(WAIT_PIN);
-                ServiceFdcResponseOperation(addr.w);
+                case 0x37EF:
+                    ServiceFdcDataOperation();
+                    break;
             }
         }
-        else
+        else if ((addr >= FDC_REQUEST_ADDR_START) && (addr <= FDC_REQUEST_ADDR_STOP))
         {
-            set_gpio(WAIT_PIN);
-
-            if (!get_gpio(IN_PIN))
-            {
-                ServicePortIn(addr.w);
-            }
-            else
-            {
-                ServicePortOut(addr.w);
-            }
+            // set_gpio(WAIT_PIN);
+            ServiceFdcRequestOperation(addr);
+        }
+        else if ((addr >= FDC_RESPONSE_ADDR_START) && (addr <= FDC_RESPONSE_ADDR_STOP))
+        {
+            // set_gpio(WAIT_PIN);
+            ServiceFdcResponseOperation(addr);
         }
 
-
-
-    	// end = systick_hw->cvr;
+        // end = systick_hw->cvr;
         // duration = (start & 0x00FFFFFF) - (end & 0x00FFFFFF);
-   }
+    }
 }
