@@ -1350,6 +1350,10 @@ void FdcProcessConfigEntry(char szLabel[], char* psz)
 	{
 		HdcInitFileName(1, psz);
 	}
+	else if (strcmp(szLabel, "DOUBLER") == 0)
+	{
+		g_FDC.byEnableDoubler = atoi(psz);
+	}
 }
 
 //-----------------------------------------------------------------------------
@@ -3386,18 +3390,24 @@ void __not_in_flash_func(fdc_write_cmd)(byte byData)
 {
 	if (byData == 0xFE) // Percom doubler
 	{
-		if (g_FDC.byDoublerType != eRsDoubler)
+		if (g_FDC.byEnableDoubler)
 		{
-			g_FDC.byDoublerDensity = 0;
-			g_FDC.byDoublerType = ePcDoubler;
+			if (g_FDC.byDoublerType != eRsDoubler)
+			{
+				g_FDC.byDoublerDensity = 0;
+				g_FDC.byDoublerType = ePcDoubler;
+			}
 		}
 	}
 	else if (byData == 0xFF) // Percom doubler
 	{
-		if (g_FDC.byDoublerType != eRsDoubler)
+		if (g_FDC.byEnableDoubler)
 		{
-			g_FDC.byDoublerDensity = 1;
-			g_FDC.byDoublerType = ePcDoubler;
+			if (g_FDC.byDoublerType != eRsDoubler)
+			{
+				g_FDC.byDoublerDensity = 1;
+				g_FDC.byDoublerType = ePcDoubler;
+			}
 		}
 	}
 	else
@@ -3414,7 +3424,15 @@ void __not_in_flash_func(fdc_write_cmd)(byte byData)
 		g_FDC.byStatus      = F_BUSY;
 		g_FDC.byCommandReceived = 1;
 
-		if (byData == 0xF4)
+		if ((byData & 0xF0) == 0) // Restore command
+		{
+			if (byData & 0x08) // load head now
+			{
+				g_FDC.byStatus |= F_HEADLOAD;
+				g_FDC.status.byHeadLoaded = 1;
+			}
+		}
+		else if (byData == 0xF4)
 		{
 			g_nRotationCount = g_dwIndexTime + 1;
 			g_FDC.status.byIndex = 0;
@@ -3480,33 +3498,36 @@ void __not_in_flash_func(fdc_write_sector)(byte byData)
 	g_FDC.bySector = byData;
 
 #ifdef ENABLE_DOUBLER
-	if (g_FDC.byDoublerType != ePcDoubler)
+	if (g_FDC.byEnableDoubler)
 	{
-		if (byData >= 0xE0)
+		if (g_FDC.byDoublerType != ePcDoubler)
 		{
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0xC0)
-		{
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0xA0)
-		{
-			g_FDC.byDoublerDensity = 0;
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0x80)
-		{
-			g_FDC.byDoublerDensity = 1;
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0x60)
-		{
-			g_FDC.byDoublerType = eRsDoubler;
-		}
-		else if (byData >= 0x40)
-		{
-			g_FDC.byDoublerType = eRsDoubler;
+			if (byData >= 0xE0)
+			{
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0xC0)
+			{
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0xA0)
+			{
+				g_FDC.byDoublerDensity = 0;
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0x80)
+			{
+				g_FDC.byDoublerDensity = 1;
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0x60)
+			{
+				g_FDC.byDoublerType = eRsDoubler;
+			}
+			else if (byData >= 0x40)
+			{
+				g_FDC.byDoublerType = eRsDoubler;
+			}
 		}
 	}
 #endif
@@ -3652,18 +3673,6 @@ byte __not_in_flash_func(fdc_read_data)(void)
 			if (g_FDC.byMultipleRecords)
 			{
 				++g_FDC.bySector;
-// #ifdef ENABLE_LOGGING
-// 				sprintf_s(g_szRwBuf, sizeof(g_szRwBuf)-1, "RD NEXT SECTOR %02X", g_FDC.bySector);
-
-// 				#ifdef MFC
-// 					strcat_s(g_szRwBuf, sizeof(g_szRwBuf)-1, "\r\n");
-// 					WriteLogFile(g_szRwBuf);
-// 				#else
-// 					puts(g_szRwBuf);
-// 				#endif
-
-// 				g_szRwBuf[0] = 0;
-// #endif
 				g_FDC.byCommandReg = 0x98;
 
 				if (g_byIntrRequest)

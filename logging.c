@@ -156,7 +156,22 @@ void fdc_get_status_string(char* buf, int nMaxLen, BYTE byStatus)
 			strcat_s(buf, nMaxLen, (char*)"F_NOTFOUND|");
 		}
 
-		strcat_s(buf, nMaxLen, (char*)"-|-|");
+		if ((byStatus & 0x20) && (byStatus & 0x40))
+		{
+			strcat_s(buf, nMaxLen, (char*)"S6|S5|");
+		}
+		else if (byStatus & 0x20)
+		{
+			strcat_s(buf, nMaxLen, (char*)"-|S5|");
+		}
+		else if (byStatus & 0x40)
+		{
+			strcat_s(buf, nMaxLen, (char*)"S6|-|");
+		}
+		else
+		{
+			strcat_s(buf, nMaxLen, (char*)"-|-|");
+		}
 
 		// S7 (NOT READY) default to 0
 		if (byStatus & F_NOTREADY)
@@ -296,7 +311,7 @@ void PurgeFdcStatus(void)
 	}
 
 	fdc_get_status_string(buf, sizeof(buf)-1, g_byPrevFdcStatus);
-	sprintf_s(buf2, sizeof(buf2)-1, "RD STATUS %02X CMD TYPE %d (%s)", fdc_log[log_tail].val, g_nCommandType, buf);
+	sprintf_s(buf2, sizeof(buf2)-1, "RD STATUS %02X CMD TYPE %d (%s)", g_byPrevFdcStatus, g_nCommandType, buf);
 
 	#ifdef MFC
 		strcat_s(buf2, sizeof(buf2)-1, "\r\n");
@@ -416,10 +431,6 @@ void GetCommandText(char* psz, int nMaxLen, BYTE byCmd, BYTE op1, BYTE op2)
 }
 
 //-----------------------------------------------------------------------------
-extern int __not_in_flash_func(FdcGetDriveIndex)(int nDriveSel);
-
-
-
 void AppendHdcCommandString(char* psz, int nMaxLen, byte byCmd)
 {
 	switch (byCmd >> 4)
@@ -875,7 +886,6 @@ void ServiceFdcLog(void)
 
         case write_cmd:
         	PurgeRwBuffer();
-			PurgeFdcStatus();
 
 			g_nCommand = fdc_log[log_tail].val;
             GetCommandText(buf, sizeof(buf), fdc_log[log_tail].val, fdc_log[log_tail].op1, fdc_log[log_tail].op2);
@@ -945,12 +955,7 @@ void ServiceFdcLog(void)
         case read_status:
             if (g_byPrevFdcStatus != fdc_log[log_tail].val)
             {
-                char buf[64];
-                char buf2[128];
-
-                PurgeRwBuffer();
 				PurgeFdcStatus();
-
                 g_byPrevFdcStatus = fdc_log[log_tail].val;
 				g_nPrevFdcStatusCount = 1;
             }
