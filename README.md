@@ -58,7 +58,7 @@ FDC utility
   FDC.COM is used with the two CP/M OSs and
   FDC/CMD is used with the rest.
 
-  - Usage
+  Usage
 
   FDC OPT PARM1:drive
 
