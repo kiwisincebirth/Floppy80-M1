@@ -31,6 +31,8 @@ ini files
   - Doubler - 1 = doubler is enabled; 0 = doubler is disabled;
   - Mem     - 0 = disable upper memory; 1 = enable upper memory;
               if not specified upper memory is enabled by default.
+  - Wait    - 0 = disable bus wait states; 1 = enable bus wait states.
+              if not specified wait states are disable by default.
 
 dmk files
 - these are virtual disk images with a specific file format
