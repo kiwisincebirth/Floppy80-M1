@@ -1,6 +1,6 @@
-## Building the Software
+# Building the Software
 
-### Floppy80 firmware
+## Floppy80 firmware
 
 You need to install the C SDK for RPI
 https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html#sdk-setup
@@ -26,13 +26,13 @@ this will create Floppy80.uf2 file which you burn to the RPI PICO
 
 Alternately you can use VSCode and the RPI Pico extension.
 
-#### Background Reading
+### Background Reading
 
 These are DEV resources:
 * https://www.raspberrypi.com/documentation/microcontrollers/c_sdk.html
 * https://admantium.medium.com/getting-started-with-raspberry-pico-and-cmake-f536e18512e6
 
-### FDC (for TRSDOS)
+## FDC (for TRSDOS)
 
 FDC TRS (utility for the TRSDOS related utility)
 
@@ -47,7 +47,7 @@ use TRS80GP to import FDC/CMD onto a disk image
 trs80gp -m1 -vs -frehd -frehd_dir zout -turbo -mem 48 -d0 dmk\ld531-0.dmk -d1 dmk\ld531-1.dmk -i "IMPORT2 FDC.CMD FDC/CMD:1\r"
 ```
 
-### FDC (for CP/M)
+## FDC (for CP/M)
 
 FDC CP/M (utility for the CP/M related utility)
 
