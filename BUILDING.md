@@ -37,6 +37,7 @@ These are DEV resources:
 FDC TRS (utility for the TRSDOS related utility)
 
 ```
+cd FDC\ TRS`
 zmac fdc.asm
 ```
 
@@ -48,25 +49,29 @@ trs80gp -m1 -vs -frehd -frehd_dir zout -turbo -mem 48 -d0 dmk\ld531-0.dmk -d1 dm
 
 ### FDC (for CP/M)
 
-- FDC CP/M (utility for the CP/M related utility)
+FDC CP/M (utility for the CP/M related utility)
 
-    1. Compile program into a hex file.
+Compile program into a hex file.
 
-       zmac fdc.asm
+```
+cd FDC\ CPM`
+zmac fdc.asm
+```
 
-    2. Run TRS80GP loading the CP/M disk images.
+Run TRS80GP loading the CP/M disk images.
 
-       start trs80gp -m1 -vs -frehd -frehd_dir zout -turbo -mem 48 -d0 CPM141-0.dmk -d1 CPM141-1.dmk -d2 CPM141-2.dmk
+```
+trs80gp -m1 -vs -frehd -frehd_dir zout -turbo -mem 48 -d0 CPM141-0.dmk -d1 CPM141-1.dmk -d2 CPM141-2.dmk
+```
 
-    3. Select Load from TRS80GP File menu and select the hex file.
+Select Load from TRS80GP File menu and select the hex file.
 
-    4. Run "SAVE 20 B:FDC.COM" to save program memory contents to a .com file.
-       As the program grows you will need to increase the value after SAVE.
+Run the SAVE command to save program memory contents to a .COM file.
+As the program grows you will need to increase the value after SAVE.
+i.e. `SAVE n ufn` Where :
+* n   - number of 256-byte pages to be saved.
+* ufn - unambiguous file name.
 
-       SAVE n ufn cr
+e.g.
 
-       n   - number of 256-byte pages to be saved.
-
-       ufn - unambiguous file name.
-
-       cr  - carriage return.
+`SAVE 20 B:FDC.COM`
