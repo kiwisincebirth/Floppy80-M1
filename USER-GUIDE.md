@@ -1,38 +1,4 @@
-# Floppy 80 for the TRS-80 Model I
-
-## Features
-
-The Floppy-80 is a Hardware and software solution that emulates 
-the following features of the Expansion Interface
-- A Floppy Disc controller
-  - supports 3 floppy drives
-  - single and double-density
-  - single and double-sided
-  - up to 90 cylinders
-  - DMK disk format supported
-- A Hard Disk Controller
-  - supports up to 2 hard drives
-  - Uses same image format as FreHD 
-- 32k RAM expansion (optional)
-- 40Hz RTC interrupt generation
-
-An SD card is required to store disk images and configuration data
-
-## Hardware
-
-The Floppy-80 consists of a board that connects to the Model-1 expansion edge connector.
-The board contains an SD card socket to provide disk images and a
-Raspberry Pi Pico 2 microcontroller which does the emulation
-
-[Building and testing](HARDWARE.md) the board is covered separately.
-
-## Software
-
-The software provided includes 2 main components
-* Firmware running on Raspberry Pi, that provides the emulation
-* FDC Utility (TRS DOS, and CPM) running on TRS-80 for emulator control
-
-See the [Separate Guide](BUILDING.md) for building the Floppy-80 software
+# Floppy 80 (Model I) User Guide
 
 ## Configuration
 
@@ -166,3 +132,60 @@ This utility is a backup if the native format function does not work.
 imports the specified file from the root folder of the FAT32 formatted SD-Card to the disk image indicated by n.
 imports a file from the root folder of the SD-Card into one of the mounted disk images (0, 1 or 2).
 
+## Operating Systems
+
+### CPM 1.4.1 (Lifeboat)
+
+Format works.
+
+### CPM 1.5 (FGM)
+
+Format works.
+
+### Double DOS 4.2.4
+
+Format works.
+
+### DOS Plus 3.50
+
+Format works, provided you start with a double sides dmk file.
+
+Backup works as long as disk doubler is disabled
+
+### LDOS 5.3.1
+
+Format works, supports only single density at this time, and requires a reboot after formatting drive.
+
+### MultiDOS 4.01
+
+Format works.
+
+Backup works, as long as disk doublers are disabled.
+
+### NEWDOS 3.0
+
+Format works.
+
+### NEWDOS 80 V2.0
+
+Format works.
+
+### TRSDOS 2.3
+
+Format works.
+
+### UltraDOS 4.2.0
+
+Format works.
+
+### VTDOS 3.0.0
+
+Format works.
+
+BACKUP - Different Pack IDs
+
+## VTDOS 4.0.1
+
+Format works.
+
+Backup works, as long as disk doublers are disabled.

@@ -1,6 +1,4 @@
-
-
-# Hardware
+# Floppy 80 (Model I) Hardware
 
 The main components Required are
 * Printed Circuit Board
@@ -11,9 +9,14 @@ The main components Required are
 
 ## Bill of Materials
 
-
+For a full Bill Of Materials please see
 
 ## Assembly Guide
 
+
+
+## Programming Firmware
+
+## Testing
 
 
